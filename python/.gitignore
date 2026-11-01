@@ -1,0 +1,14 @@
+# build byproducts
+*.egg-info/
+build/
+dist/
+src/shredtree/_version.py
+
+# caches
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# environments
+.venv/

@@ -1,0 +1,31 @@
+{
+  "title": "Derived from parts of a nested document",
+  "about": "Every element of a document is sealed on its own: shredding part of it removes that part, and changes the whole.",
+  "steps": [
+    {"as": "summary", "xml": "<summary><a>keep a</a><b><c>secret c</c><e><f>deep f</f></e></b><d>keep d</d></summary>"},
+    {"as": "from_a", "xml": "<from_a><p>from_a 1</p><p>from_a 2</p></from_a>", "from": ["summary/a"]},
+    {"as": "from_c", "xml": "<from_c><p>from_c 1</p><p>from_c 2</p></from_c>", "from": ["summary/b/c"]},
+    {"as": "from_d", "xml": "<from_d><p>from_d 1</p><p>from_d 2</p></from_d>", "from": ["summary/d"]},
+    {"as": "from_f", "xml": "<from_f><p>from_f 1</p><p>from_f 2</p></from_f>", "from": ["summary/b/e/f"]},
+    {"as": "from_summary", "xml": "<from_summary><p>from_summary 1</p><p>from_summary 2</p></from_summary>", "from": ["summary"]},
+    {"as": "from_from", "xml": "<from_from><p>from_from 1</p><p>from_from 2</p></from_from>", "from": ["from_summary"]}
+  ],
+  "checks": [
+    {"name": "shredding an inner node hides only its subtree, and kills what was derived from inside it or from the whole",
+     "shred": "summary/b",
+     "gone": ["summary/b", "summary/b/c", "summary/b/e", "summary/b/e/f", "from_c", "from_f", "from_summary", "from_from"],
+     "kept": ["summary", "summary/a", "summary/d", "from_a", "from_d"],
+     "stale": ["from_c", "from_f", "from_summary", "from_from"]},
+    {"name": "shredding the whole document kills what was derived from its deepest part", "shred": "summary",
+     "gone": ["summary", "summary/b/e/f", "from_a", "from_c", "from_d", "from_f", "from_summary", "from_from"],
+     "stale": ["from_a", "from_c", "from_d", "from_f", "from_summary", "from_from"]},
+    {"name": "shredding a deep descendant kills what was derived from the whole, transitively", "shred": "summary/b/e/f",
+     "gone": ["summary/b/e/f", "from_f", "from_summary", "from_from"],
+     "kept": ["summary", "summary/b", "summary/b/e", "from_a", "from_c", "from_d"],
+     "stale": ["from_f", "from_summary", "from_from"]},
+    {"name": "shredding a sibling does not kill what was derived from another sibling", "shred": "summary/d",
+     "gone": ["summary/d", "from_d", "from_summary", "from_from"],
+     "kept": ["summary", "summary/a", "from_a", "from_c", "from_f"],
+     "stale": ["from_d", "from_summary", "from_from"]}
+  ]
+}

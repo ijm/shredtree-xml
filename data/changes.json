@@ -1,0 +1,19 @@
+{
+  "title": "Changing a source",
+  "about": "Shredding a child of a source, or adding one, changes the source: what was derived from the whole goes, what was derived from an unchanged part stays.",
+  "steps": [
+    {"as": "src", "xml": "<src><keep>public</keep><secret>shred me</secret></src>"},
+    {"as": "derived", "xml": "<derived>made from src</derived>", "from": ["src"]},
+    {"as": "from_keep", "xml": "<from_keep>made from keep</from_keep>", "from": ["src/keep"]},
+    {"as": "other", "xml": "<other>unrelated</other>"},
+    {"as": "d2", "xml": "<d2>made from other</d2>", "from": ["other"]}
+  ],
+  "checks": [
+    {"name": "shredding a child kills what was derived from its parent", "shred": "src/secret",
+     "gone": ["src/secret", "derived"], "kept": ["src", "src/keep", "from_keep", "other", "d2"],
+     "stale": ["derived"]},
+    {"name": "inserting into a node kills what was derived from it", "insert": {"into": "src", "xml": "<added>new</added>"},
+     "gone": ["derived"], "kept": ["src", "src/keep", "src/secret", "from_keep", "other", "d2"],
+     "stale": ["derived"]}
+  ]
+}

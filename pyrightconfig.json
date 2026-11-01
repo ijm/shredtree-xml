@@ -1,0 +1,11 @@
+{
+  // at the repo root so editors opened here or in python/ find it, and the venv
+  "venvPath": "python",
+  "venv": ".venv",
+  "pythonVersion": "3.12",  // the oldest supported version, as for mypy and ruff
+  "typeCheckingMode": "strict",
+  "include": ["python/src", "python/tests", "demo/src/engine"],
+  // setting exclude replaces pyright's defaults, so they are restated here
+  "exclude": ["**/junk", "**/node_modules", "**/__pycache__", "**/.*", "**/build", "**/dist"],
+  "ignore": ["**/junk"]  // no diagnostics even for an open file under junk/
+}

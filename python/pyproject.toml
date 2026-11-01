@@ -1,0 +1,97 @@
+[build-system]
+requires = ["setuptools>=77", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shredtree-xml"
+dynamic = ["version"]
+description = "An XML store where every node is sealed under its own key, so shredding a node removes everything derived from it."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = ["elementpath>=5.1", "cryptography>=42"]
+authors = [
+    { name = "Ian McEwan", email = "ijm567+py@gmail.com" },
+]
+keywords = ["xml", "xpath", "crypto-shredding", "provenance", "lineage"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+]
+
+[project.scripts]
+shredtree-server = "shredtree.server:main"
+
+[project.urls]
+Homepage = "https://github.com/ijm/shredtree-xml"
+Repository = "https://github.com/ijm/shredtree-xml"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "mypy>=1",
+    "ruff>=0.9",
+    "pytest-timeout>=2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+shredtree = ["py.typed"]
+
+[tool.setuptools_scm]
+root = ".."  # the git repo root; this package lives in its python/ directory
+version_file = "src/shredtree/_version.py"
+fallback_version = "0.0.0"  # used until the repo has a tag
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# importlib: tests import the installed package, never a copy found via sys.path
+addopts = ["--import-mode=importlib", "-ra", "--strict-markers", "--strict-config"]
+xfail_strict = true
+timeout = 60  # a blowup should fail a test, not hang the suite
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+extend-exclude = ["junk"]   # any directory named junk
+force-exclude = true        # honour excludes for paths the editor passes in
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# E/F=pyflakes+pycodestyle, I=isort, UP=pyupgrade, B=bugbear
+# intentionally permissive — no "D" docstrings, no "ANN" annotations
+ignore = ["E501"]   # line length handled by formatter, not lint
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+known-first-party = ["shredtree"]
+
+[tool.mypy]
+python_version = "3.12"
+exclude = '(^|/)junk/'
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"      # the oldest supported version, as for mypy and ruff
+# setting exclude replaces pyright's defaults, so they are restated here
+exclude = ["**/junk", "**/node_modules", "**/__pycache__", "**/.*", "**/build", "**/dist"]
+ignore = ["**/junk"]        # no diagnostics even for an open file under junk/
+# typeCheckingMode = "standard"
+typeCheckingMode = "strict"
+
+[settings]
+ignore_patterns = [
+    "**/junk/**"
+]

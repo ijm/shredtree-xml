@@ -1,0 +1,14 @@
+{
+  "title": "Two copies of the same text",
+  "about": "Identical content pushed twice is two nodes: shredding one copy kills only what was derived from that copy.",
+  "steps": [
+    {"as": "first", "xml": "<source><p>same text</p></source>"},
+    {"as": "second", "xml": "<source><p>same text</p></source>"},
+    {"as": "from_first", "xml": "<from_first><p>from_first 1</p><p>from_first 2</p></from_first>", "from": ["first"]},
+    {"as": "from_second", "xml": "<from_second><p>from_second 1</p><p>from_second 2</p></from_second>", "from": ["second"]}
+  ],
+  "checks": [
+    {"name": "shredding one copy kills only what was derived from it", "shred": "first",
+     "gone": ["first", "from_first"], "kept": ["second", "from_second"], "stale": ["from_first"]}
+  ]
+}

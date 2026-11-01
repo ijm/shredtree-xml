@@ -1,0 +1,15 @@
+{
+  "title": "A merge of two sources",
+  "about": "Something derived from two sources dies if either of them goes.",
+  "steps": [
+    {"as": "one", "xml": "<source><p>one</p></source>"},
+    {"as": "two", "xml": "<source><p>two</p></source>"},
+    {"as": "merge", "xml": "<merge><p>merge 1</p><p>merge 2</p></merge>", "from": ["one", "two"]}
+  ],
+  "checks": [
+    {"name": "shredding the second parent kills the merge", "shred": "two",
+     "gone": ["two", "merge"], "kept": ["one"], "stale": ["merge"]},
+    {"name": "shredding the first parent kills the merge", "shred": "one",
+     "gone": ["one", "merge"], "kept": ["two"], "stale": ["merge"]}
+  ]
+}
