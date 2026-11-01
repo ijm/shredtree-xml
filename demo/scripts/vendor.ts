@@ -16,6 +16,7 @@ const PACKAGES = ["cryptography"]; // from Pyodide's distribution, with their de
 const CORE = ["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "python_stdlib.zip", "pyodide-lock.json"];
 
 const demo = fileURLToPath(new URL("..", import.meta.url));
+const python = process.env.PYTHON ?? join(demo, "..", "python", ".venv", "bin", "python");
 const pyodideDir = join(demo, "node_modules", "pyodide");
 const out = join(demo, "public", "vendor", "pyodide");
 
@@ -62,7 +63,8 @@ async function main(): Promise<void> {
   await download(ep.url, join(out, ep.filename), ep.digests.sha256);
 
   const build = mkdtempSync(join(tmpdir(), "shredtree-wheel-"));
-  execFileSync("uv", ["build", "--wheel", "--quiet", "--out-dir", build, join(demo, "..", "python")], { stdio: "inherit" });
+  execFileSync(python, ["-m", "pip", "wheel", "--no-deps", "--quiet", "--wheel-dir", build, join(demo, "..", "python")],
+               { stdio: "inherit" });
   const [wheel] = readdirSync(build).filter((f) => f.endsWith(".whl"));
   for (const old of readdirSync(out).filter((f) => f.startsWith("shredtree_xml-"))) rmSync(join(out, old));
   copyFileSync(join(build, wheel), join(out, wheel));

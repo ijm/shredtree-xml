@@ -16,7 +16,7 @@ from ._records import Field, Forest, Rec, Ref
 from .errors import BadRequest, NotFound, Unavailable
 
 # Namespace and attribute names
-NS = "https://something.org/ns1"
+NS = "https://ijm.github.io/shredtree-xml/shredtree.xsd"
 ST_ID = f"{{{NS}}}id"
 ST_INTEGRITY = f"{{{NS}}}integrity"
 ET.register_namespace("st", NS)
