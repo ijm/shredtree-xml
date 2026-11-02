@@ -3,11 +3,11 @@
   "about": "Each paragraph is translated on its own; the summary is made from the whole article, and a post is made from the summary and one translation.",
   "steps": [
     {"as": "article", "xml": "<article><title>Right to be forgotten</title><p>Alice asked for her data to be removed.</p><p>Her address appeared in the second paragraph.</p><p>The rest of the article is about the law.</p></article>"},
-    {"as": "fr1", "xml": "<translation lang='fr'>Alice a demandé la suppression de ses données.</translation>", "from": ["article/p[1]"]},
-    {"as": "fr2", "xml": "<translation lang='fr'>Son adresse figurait dans le deuxième paragraphe.</translation>", "from": ["article/p[2]"]},
-    {"as": "fr3", "xml": "<translation lang='fr'>Le reste de l'article porte sur la loi.</translation>", "from": ["article/p[3]"]},
-    {"as": "summary", "xml": "<summary>A request to be forgotten, and the law behind it.</summary>", "from": ["article"]},
-    {"as": "post", "xml": "<post>Read the summary, and the French for the key paragraph.</post>", "from": ["summary", "fr2"]}
+    {"as": "fr1", "transform": "translate-fr", "xml": "<translation lang='fr'>Alice a demandé la suppression de ses données.</translation>", "from": ["article/p[1]"]},
+    {"as": "fr2", "transform": "translate-fr", "xml": "<translation lang='fr'>Son adresse figurait dans le deuxième paragraphe.</translation>", "from": ["article/p[2]"]},
+    {"as": "fr3", "transform": "translate-fr", "xml": "<translation lang='fr'>Le reste de l'article porte sur la loi.</translation>", "from": ["article/p[3]"]},
+    {"as": "summary", "transform": "summarise", "xml": "<summary>A request to be forgotten, and the law behind it.</summary>", "from": ["article"]},
+    {"as": "post", "transform": "compose", "xml": "<post>Read the summary, and the French for the key paragraph.</post>", "from": ["summary", "fr2"]}
   ],
   "checks": [
     {"name": "shredding one paragraph kills its translation and everything made from the whole",

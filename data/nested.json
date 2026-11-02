@@ -3,12 +3,12 @@
   "about": "Every element of a document is sealed on its own: shredding part of it removes that part, and changes the whole.",
   "steps": [
     {"as": "summary", "xml": "<summary><a>keep a</a><b><c>secret c</c><e><f>deep f</f></e></b><d>keep d</d></summary>"},
-    {"as": "from_a", "xml": "<from_a><p>from_a 1</p><p>from_a 2</p></from_a>", "from": ["summary/a"]},
-    {"as": "from_c", "xml": "<from_c><p>from_c 1</p><p>from_c 2</p></from_c>", "from": ["summary/b/c"]},
-    {"as": "from_d", "xml": "<from_d><p>from_d 1</p><p>from_d 2</p></from_d>", "from": ["summary/d"]},
-    {"as": "from_f", "xml": "<from_f><p>from_f 1</p><p>from_f 2</p></from_f>", "from": ["summary/b/e/f"]},
-    {"as": "from_summary", "xml": "<from_summary><p>from_summary 1</p><p>from_summary 2</p></from_summary>", "from": ["summary"]},
-    {"as": "from_from", "xml": "<from_from><p>from_from 1</p><p>from_from 2</p></from_from>", "from": ["from_summary"]}
+    {"as": "from_a", "transform": "extract", "xml": "<from_a><p>from_a 1</p><p>from_a 2</p></from_a>", "from": ["summary/a"]},
+    {"as": "from_c", "transform": "extract", "xml": "<from_c><p>from_c 1</p><p>from_c 2</p></from_c>", "from": ["summary/b/c"]},
+    {"as": "from_d", "transform": "extract", "xml": "<from_d><p>from_d 1</p><p>from_d 2</p></from_d>", "from": ["summary/d"]},
+    {"as": "from_f", "transform": "extract", "xml": "<from_f><p>from_f 1</p><p>from_f 2</p></from_f>", "from": ["summary/b/e/f"]},
+    {"as": "from_summary", "transform": "extract", "xml": "<from_summary><p>from_summary 1</p><p>from_summary 2</p></from_summary>", "from": ["summary"]},
+    {"as": "from_from", "transform": "extract", "xml": "<from_from><p>from_from 1</p><p>from_from 2</p></from_from>", "from": ["from_summary"]}
   ],
   "checks": [
     {"name": "shredding an inner node hides only its subtree, and kills what was derived from inside it or from the whole",

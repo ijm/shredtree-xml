@@ -6,7 +6,7 @@
     {"as": "private", "into": "doc", "xml": "<p>private</p>", "acl": "x"},
     {"as": "deeper", "into": "private", "xml": "<p>very private</p>", "acl": "y"},
     {"as": "note", "into": "doc", "xml": "<note>a private note</note>", "acl": "x"},
-    {"as": "summary", "xml": "<summary>public, but made from the private note</summary>", "from": ["note"]}
+    {"as": "summary", "transform": "summarise", "xml": "<summary>public, but made from the private note</summary>", "from": ["note"]}
   ],
   "checks": [
     {"name": "without a key only the public part shows", "keys": [],

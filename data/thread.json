@@ -3,10 +3,10 @@
   "about": "A source, a summary of it and an extract of the summary, next to an unrelated source with its tags.",
   "steps": [
     {"as": "source", "xml": "<source><p>source text</p></source>"},
-    {"as": "summary", "xml": "<summary><p>summary 1</p><p>summary 2</p></summary>", "from": ["source"]},
-    {"as": "extract", "xml": "<extract><p>extract 1</p><p>extract 2</p></extract>", "from": ["summary"]},
+    {"as": "summary", "transform": "summarise", "xml": "<summary><p>summary 1</p><p>summary 2</p></summary>", "from": ["source"]},
+    {"as": "extract", "transform": "extract", "xml": "<extract><p>extract 1</p><p>extract 2</p></extract>", "from": ["summary"]},
     {"as": "other", "xml": "<source><p>unrelated</p></source>"},
-    {"as": "tags", "xml": "<tags><p>tags 1</p><p>tags 2</p></tags>", "from": ["other"]}
+    {"as": "tags", "transform": "tag", "xml": "<tags><p>tags 1</p><p>tags 2</p></tags>", "from": ["other"]}
   ],
   "checks": [
     {"name": "shredding a source kills its whole thread", "shred": "source",

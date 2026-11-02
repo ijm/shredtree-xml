@@ -7,4 +7,8 @@ export default defineConfig({
   base: "./",
   plugins: [react()],
   worker: { format: "es" },
+  // pyodide finds its runtime files from indexURL, which pre-bundling would break
+  optimizeDeps: { exclude: ["pyodide"] },
+  // the scenarios are read from ../data, shared with the Python tests
+  server: { fs: { allow: [".."] } },
 });

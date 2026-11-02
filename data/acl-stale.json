@@ -3,8 +3,8 @@
   "about": "When a source goes, each session is told about the derived nodes it can see, and nothing else.",
   "steps": [
     {"as": "src", "xml": "<src>source</src>"},
-    {"as": "public", "xml": "<public>made from src</public>", "from": ["src"]},
-    {"as": "private", "xml": "<private>made from src</private>", "from": ["src"], "acl": "x"}
+    {"as": "public", "transform": "copy", "xml": "<public>made from src</public>", "from": ["src"]},
+    {"as": "private", "transform": "copy", "xml": "<private>made from src</private>", "from": ["src"], "acl": "x"}
   ],
   "checks": [
     {"name": "without x, only the public derivative is stale", "shred": "src", "keys": [],

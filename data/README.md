@@ -10,8 +10,8 @@ do. The Python tests (`python/tests/test_scenarios.py`) and the demo's tests
   "about": "Optional one-line description.",
   "steps": [
     {"as": "article", "xml": "<source><p>One</p><p>Two</p></source>"},
-    {"as": "fr2", "xml": "<translation>Deux</translation>", "from": ["article/p[2]"]},
-    {"as": "summary", "xml": "<summary>…</summary>", "from": ["article"]}
+    {"as": "fr2", "transform": "translate-fr", "xml": "<translation>Deux</translation>", "from": ["article/p[2]"]},
+    {"as": "summary", "transform": "summarise", "xml": "<summary>…</summary>", "from": ["article"]}
   ],
   "checks": [
     {"name": "shredding a paragraph", "shred": "article/p[2]",
@@ -22,8 +22,10 @@ do. The Python tests (`python/tests/test_scenarios.py`) and the demo's tests
 
 **Steps** are inserted in order, each through the normal insert API, inside one
 top-level `<scenario/>` element. `as` names the inserted node; `into` (a ref) puts it
-inside that node instead; `from` lists the refs it was derived from; `acl` is the ACL
-secret applied to it.
+inside that node instead; `from` lists the refs it was derived from, and `transform`
+names what made it from them, with `xml` as that transform's output; `acl` is the ACL
+secret applied to it. Together the `from`s and `transform`s are the pipeline: the demo
+draws them as the graph's edges and nodes. The tests ignore `transform`.
 
 **Refs** name nodes: a label (`"article"`), or a label and an XPath relative to that
 node (`"article/p[2]"`, `"summary/b/e/f"`) that must select exactly one element.

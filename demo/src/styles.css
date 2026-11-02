@@ -1,0 +1,187 @@
+@font-face {
+  font-family: "Propo";
+  font-weight: 200;
+  src: url("./assets/fonts/JetBrainsMonoNerdFontPropo-ExtraLight.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Propo";
+  font-weight: 300;
+  src: url("./assets/fonts/JetBrainsMonoNerdFontPropo-Light.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Propo";
+  font-weight: 400;
+  src: url("./assets/fonts/JetBrainsMonoNerdFontPropo-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Mono";
+  font-weight: 300;
+  src: url("./assets/fonts/JetBrainsMonoNLNerdFontMono-Light.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Mono";
+  font-weight: 400;
+  src: url("./assets/fonts/JetBrainsMonoNLNerdFontMono-Regular.woff2") format("woff2");
+}
+
+:root {
+  --bg: #04080c;
+  --panel: rgba(6, 14, 20, 0.92);
+  --grid: #0b1820;
+  --line: #1c4c63;
+  --blue: #5cc8f0;
+  --green: #45d6a0;
+  --text: #a9c7d1;
+  --dim: #4a6a78;
+  --halo: #b6fbff;
+  --glow: rgba(140, 240, 255, 0.35);
+  --leaf-width: 250px;
+
+  color-scheme: dark;
+  background: var(--bg);
+  color: var(--text);
+  font: 300 13px/1.4 "Propo", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+
+button, select {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+button:hover:not(:disabled), select:hover { border-color: var(--blue); color: var(--blue); }
+button:disabled { cursor: default; opacity: 0.4; }
+select option { background: var(--bg); }
+
+/* -- frame ----------------------------------------------------------------------- */
+.app { display: flex; flex-direction: column; height: 100%; }
+
+/* the control panel: labelled groups that wrap onto more rows as the window narrows */
+.panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px 12px;
+  padding: 8px 12px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(92, 200, 240, 0.08), 0 4px 18px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+}
+.brand {
+  align-self: center;
+  font: 400 13px "Mono", monospace;
+  letter-spacing: 0.25em;
+  color: var(--blue);
+  text-transform: uppercase;
+}
+.group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 8px 6px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.group legend {
+  padding: 0 4px;
+  font: 300 10px "Mono", monospace;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+.group.about { flex: 1 1 320px; }
+.group.about p { margin: 0; color: var(--text); }
+.panel select { max-width: 360px; padding: 3px 6px; }
+.group > button.icon { font-size: 18px; line-height: 1; padding: 1px 6px; }
+
+.key { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; color: var(--dim); border-style: dashed; }
+.key .icon { font-size: 18px; line-height: 1; }
+.key .state { font: 300 10px "Mono", monospace; text-transform: uppercase; letter-spacing: 0.1em; }
+.key.held {
+  color: var(--bg);
+  background: var(--green);
+  border: 1px solid var(--green);
+  box-shadow: 0 0 10px 1px rgba(69, 214, 160, 0.35);
+}
+.key.held:hover:not(:disabled) { color: var(--bg); border-color: var(--halo); }
+
+.error {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--line);
+  font: 300 11px "Mono", monospace;
+  color: var(--halo);
+}
+
+.canvas { position: relative; flex: 1; min-height: 0; }
+.boot { display: grid; place-items: center; height: 100%; font-family: "Mono", monospace; color: var(--dim); }
+
+.react-flow { --xy-background-color: var(--bg); --xy-background-pattern-color: var(--grid); }
+
+/* -- nodes ----------------------------------------------------------------------- */
+/* React Flow turns pointer events off on nodes that can't be dragged or selected */
+.st-node {
+  pointer-events: all;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  --accent: var(--blue);
+}
+.st-node.is-derived { --accent: var(--green); }
+.st-node.leaf { width: var(--leaf-width); background: var(--panel); }
+.st-node.box { width: 100%; height: 100%; background: rgba(8, 20, 28, 0.25); }
+.st-node.private { border-style: dashed; }
+
+.st-node.halo {
+  border-color: var(--halo);
+  box-shadow: 0 0 0 1px var(--halo), 0 0 14px 2px var(--glow);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 4px 0 6px;
+  font: 300 10px "Mono", monospace;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* a leaf's header wraps (leaves are measured); a box's is one line, sized for layout */
+.head .what { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; flex: 1; min-width: 0; }
+.box > .head .what { flex-wrap: nowrap; overflow: hidden; }
+.leaf > .head { height: auto; min-height: 28px; padding-top: 3px; padding-bottom: 3px; }
+.head .id, .head .controls { flex-shrink: 0; }
+.head .tag { color: var(--accent); font-weight: 400; }
+.head .label { color: var(--text); }
+.head .transform { color: var(--accent); }
+.head .acl { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); }
+.head .acl .icon { font-size: 16px; line-height: 1; }
+
+
+.controls { display: flex; gap: 3px; opacity: 0; }
+.st-node:hover .controls, .st-node:focus-within .controls { opacity: 1; }
+.controls button { padding: 1px 4px; font-size: 17px; line-height: 1; border-color: transparent; }
+.controls button:hover:not(:disabled) { border-color: var(--blue); }
+
+.body {
+  padding: 2px 8px 7px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.react-flow__handle { opacity: 0; width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; }
+
+.react-flow__edge-path { stroke: var(--line); stroke-width: 1; }
+.react-flow__edge.halo .react-flow__edge-path { stroke: var(--halo); filter: drop-shadow(0 0 3px var(--glow)); }
+
+/* off-screen copies of the leaves, for measuring */
+.measure { position: absolute; visibility: hidden; pointer-events: none; left: -10000px; top: 0; }

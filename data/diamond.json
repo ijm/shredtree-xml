@@ -4,7 +4,7 @@
   "steps": [
     {"as": "one", "xml": "<source><p>one</p></source>"},
     {"as": "two", "xml": "<source><p>two</p></source>"},
-    {"as": "merge", "xml": "<merge><p>merge 1</p><p>merge 2</p></merge>", "from": ["one", "two"]}
+    {"as": "merge", "transform": "merge", "xml": "<merge><p>merge 1</p><p>merge 2</p></merge>", "from": ["one", "two"]}
   ],
   "checks": [
     {"name": "shredding the second parent kills the merge", "shred": "two",
