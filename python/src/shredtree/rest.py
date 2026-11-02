@@ -1,8 +1,8 @@
 """shredtree.service as JSON text, for any transport (e.g. shredtree.server).
 
-    call(service, acl, endpoint, body) -> (status, reply)
+    call(service, acls, endpoint, body) -> (status, reply)
 
-    /insert  {"target", "xml", "refs"?, "vars"?}  -> {"result": {"id", "integrity"}}
+    /insert  {"target", "xml", "refs"?, "vars"?, "acl"?} -> {"result": {"id", "integrity"}}
     /query   {"xpath", "vars"?, "at"?}             -> {"result": [...] or a value}
     /shred   {"target", "vars"?}                   -> {"result": <count>}
     /stale   {"target", "vars"?}                   -> {"result": [{"id", "tag", "refs"}]}
@@ -12,7 +12,7 @@ Each call is one transaction. Errors are returnedby value and NOT raised.
 Errors are {"error": <exception name>, "message": ...} and use HTTP status codes.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from decimal import Decimal
 import json
 from typing import Any
@@ -38,13 +38,15 @@ STATUS: dict[type[ShredtreeError], int] = {
 }
 
 
-def call(service: Service, acl: bytes, endpoint: str, body: str | bytes) -> tuple[int, str]:
-    """One request; `body` is JSON text, empty meaning {}."""
+def call(service: Service, acls: Iterable[bytes], endpoint: str,
+         body: str | bytes) -> tuple[int, str]:
+    """One request, holding the ACL secrets `acls`; `body` is JSON text, empty meaning {}.
+    An insert's "acl" names the secret to apply."""
     try:
         route = _ROUTES.get(endpoint)
         if route is None:
             raise NotFound(f"no such endpoint: {endpoint}")
-        results = service.batch(acl, route(_parse(body)))
+        results = service.batch(acls, route(_parse(body)))
         return 200, _dump({"result": results if endpoint == "/batch" else results[0]})
     except ShredtreeError as e:
         status = next((s for t, s in STATUS.items() if isinstance(e, t)), 400)
@@ -70,7 +72,9 @@ def _op(spec: dict[str, Any], kind: str) -> Op:
         match kind:
             case "insert":
                 refs: list[str] = spec.get("refs") or []
-                return Insert(spec["target"], spec["xml"], tuple(refs), vars_)
+                acl: str | None = spec.get("acl")
+                return Insert(spec["target"], spec["xml"], tuple(refs), vars_,
+                              acl.encode() if acl else None)
             case "query":
                 return Query(spec["xpath"], vars_, spec.get("at"))
             case "shred":

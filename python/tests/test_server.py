@@ -75,8 +75,9 @@ def test_errors_map_to_status_codes(url: str) -> None:
 
 
 def test_acl_is_the_bearer_token(url: str) -> None:
-    result(url, "/insert", {"target": "/root", "xml": "<secret/>"}, acl="team-a")
+    result(url, "/insert", {"target": "/root", "xml": "<secret/>", "acl": "team-a"}, acl="team-a")
     assert result(url, "/query", {"xpath": "count(//secret)"}, acl="team-a") == 1
+    assert result(url, "/query", {"xpath": "count(//secret)"}, acl="team-b,team-a") == 1
     assert result(url, "/query", {"xpath": "count(//secret)"}) == 0
 
 

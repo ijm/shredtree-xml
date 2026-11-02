@@ -4,7 +4,7 @@ hashes. So they recurse up the tree and across refs, and are cached until the ne
 write.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 import json
 from typing import Any
 
@@ -23,9 +23,23 @@ def _encode(value: object) -> bytes:
     return json.dumps(value, sort_keys=True).encode()
 
 
+type Keyring = dict[str, bytes]  # ACL id -> secret
+
+
+def acl_id(secret: bytes) -> str:
+    """The public name of an ACL, stored on the nodes it is applied to."""
+    return kdf(b"acl-id", secret).hex()
+
+
+def keyring(acls: Iterable[bytes]) -> Keyring:
+    if isinstance(acls, bytes | str):
+        raise TypeError("expected a collection of ACL secrets, not one secret")
+    return {acl_id(a): a for a in acls if a}
+
+
 class Resolver:
-    def __init__(self, acl: bytes, forest: Forest) -> None:
-        self._acl, self._forest = acl, forest
+    def __init__(self, keys: Keyring, forest: Forest) -> None:
+        self._keyring, self._forest = keys, forest
         self._keys: dict[str, bytes | None] = {}
         self._hashes: dict[str, bytes | None] = {}
         self._fields: dict[tuple[str, Field], tuple[bytes, Any]] = {}  # (encoded, decoded)
@@ -36,8 +50,13 @@ class Resolver:
         self._hashes.clear()
         self._fields.clear()
 
-    def node_kdf(self, parent_key: bytes, nid: bytes, hashes: Sequence[bytes]) -> bytes:
-        return kdf(self._acl, parent_key, nid, *hashes)
+    def holds(self, acl: str | None) -> bool:
+        """Whether this session can open a node whose ACL id is `acl`."""
+        return acl is None or acl in self._keyring
+
+    def node_kdf(self, parent_key: bytes, nid: bytes, hashes: Sequence[bytes],
+                 acl: bytes | None) -> bytes:
+        return kdf(parent_key, nid, *hashes, *([acl] if acl else []))
 
     def key(self, rec: Rec) -> bytes | None:
         rid = rec["id"]
@@ -70,6 +89,9 @@ class Resolver:
         return h if h is not None and h.hex() == ref["integrity"] else None
 
     def _compute_key(self, rec: Rec) -> bytes | None:
+        acl = None if rec["acl"] is None else self._keyring.get(rec["acl"])
+        if rec["acl"] is not None and acl is None:
+            return None
         chain = self._forest.chain(rec["id"])
         if chain is None:
             return None
@@ -85,7 +107,7 @@ class Resolver:
             if h is None:
                 return None
             hashes.append(h)
-        return self._open(self.node_kdf(parent_key, bytes.fromhex(rec["id"]), hashes), rec)
+        return self._open(self.node_kdf(parent_key, bytes.fromhex(rec["id"]), hashes, acl), rec)
 
     def _open(self, key: bytes, rec: Rec) -> bytes | None:
         """`key` if every field of `rec` decrypts under it, else None. A wrong key and

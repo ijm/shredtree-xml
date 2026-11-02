@@ -33,17 +33,18 @@ Requires Python 3.12+.
 from shredtree import DirKV, Service
 
 svc = Service(DirKV("data"))
-acl = b""   # the caller's key: nothing opens without it
+keys = [b"team-a"]   # the caller's keyring: ACL secrets it holds
 
-doc = svc.insert(acl, "/root", "<doc><source>original text</source></doc>")
-src = svc.query(acl, "string(//source/@st:id)")
-svc.insert(acl, "//*[@st:id = $id]", "<summary>made from source</summary>",
+doc = svc.insert(keys, "/root", "<doc><source>original text</source></doc>", acl=b"team-a")
+src = svc.query(keys, "string(//source/@st:id)")
+svc.insert(keys, "//*[@st:id = $id]", "<summary>made from source</summary>",
            refs=[src], vars={"id": doc.id})
 
-svc.query(acl, "count(//summary)")   # 1
-svc.shred(acl, "//source")
-svc.query(acl, "count(//summary)")   # 0
-svc.stale(acl, "//*[@st:id = $id]", vars={"id": doc.id})   # [Stale(..., tag='summary', ...)]
+svc.query(keys, "count(//summary)")   # 1
+svc.query((), "count(//summary)")     # 0: the doc is under team-a's ACL
+svc.shred(keys, "//source")
+svc.query(keys, "count(//summary)")   # 0
+svc.stale(keys, "//*[@st:id = $id]", vars={"id": doc.id})   # [Stale(..., tag='summary', ...)]
 ```
 
 Every call is one transaction. Targets are XPath expressions, and results are XML
@@ -62,10 +63,11 @@ curl -X POST localhost:8080/query -H 'Authorization: Bearer team-a' \
      -d '{"xpath": "count(//summary)"}'
 ```
 
-POST `/insert`, `/query`, `/shred`, `/stale` and `/batch` with JSON bodies; the acl is
-the bearer token. See `shredtree.rest` for the formats and status codes.
+POST `/insert`, `/query`, `/shred`, `/stale` and `/batch` with JSON bodies; the bearer
+token is the caller's ACL secrets, comma-separated, and an insert's `"acl"` names the
+one to apply. See `shredtree.rest` for the formats and status codes.
 
-The same interface works without HTTP: `shredtree.rest.call(service, acl, "/query",
+The same interface works without HTTP: `shredtree.rest.call(service, acls, "/query",
 body)` takes and returns JSON text, for any transport that can pass strings.
 
 ## Layers

@@ -9,7 +9,7 @@
 Each post is a top-level <post id="...">; a session is one service transaction.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from types import TracebackType
 from typing import Any
 import xml.etree.ElementTree as ET
@@ -27,18 +27,18 @@ class PostStore:
     def __init__(self, kv: KVStore) -> None:
         self._service = Service(kv)
 
-    def session(self, acl: bytes = b"") -> "PostSession":
-        return PostSession(self._service, acl)
+    def session(self, acls: Iterable[bytes] = ()) -> "PostSession":
+        return PostSession(self._service, acls)
 
 
 class PostSession:
-    def __init__(self, service: Service, acl: bytes) -> None:
+    def __init__(self, service: Service, acls: Iterable[bytes]) -> None:
         self._service = service
-        self._acl = acl
+        self._acls = acls
         self._tx: Transaction | None = None
 
     def __enter__(self) -> "PostSession":
-        self._tx = self._service.transaction(self._acl).__enter__()
+        self._tx = self._service.transaction(self._acls).__enter__()
         return self
 
     def __exit__(
@@ -50,15 +50,16 @@ class PostSession:
         tx, self._tx = self._live(), None
         tx.__exit__(e_type, e_value, e_traceback)
 
-    def new_post(self, post_id: str) -> None:
+    def new_post(self, post_id: str, acl: bytes | None = None) -> None:
         if self._live().query(f"count({_POST})", {"p": post_id}):
             raise AlreadyExists(post_id)
         post = ET.tostring(ET.Element("post", id=post_id), encoding="unicode")
-        self._live().insert("/root", post)
+        self._live().insert("/root", post, acl=acl)
 
-    def push(self, post_id: str, xml: str, refs: Sequence[str] = ()) -> str:
+    def push(self, post_id: str, xml: str, refs: Sequence[str] = (),
+             acl: bytes | None = None) -> str:
         """Insert `xml` into the post; returns its st:id."""
-        return self._live().insert(_POST, xml, refs, {"p": post_id}).id
+        return self._live().insert(_POST, xml, refs, {"p": post_id}, acl).id
 
     def pull(self, post_id: str, node_name: str) -> list[str]:
         result: list[str] = self.query(post_id, "//*[name() = $n]", n=node_name)

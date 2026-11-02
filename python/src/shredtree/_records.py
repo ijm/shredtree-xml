@@ -33,6 +33,7 @@ class Rec(Sealed):
     """A stored node, as it sits in the backend."""
     id: str  # st:id: 16 random bytes in hex, also the nonce in the node's key
     tag: str
+    acl: str | None  # id of the ACL applied at this node, never the secret
     parent: str | None
     kids: list[str]
     refs: list[Ref]

@@ -1,13 +1,13 @@
 """The Shredtree interface applications use.
-Each call is a transaction under one acl that commits only if every op succeeds. Targets
+Each call is a transaction under a keyring of ACL secrets that commits only if every op succeeds. Targets
 are XPath from a synthetic <root>. Results are XML strings and plain values, not live handles.
 
-    with service.transaction(acl) as tx:
-        doc = tx.insert("/root", "<doc/>")
+    with service.transaction([acl]) as tx:
+        doc = tx.insert("/root", "<doc/>", acl=acl)
         tx.query("count(/root/*)")
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Any
@@ -39,11 +39,13 @@ class Inserted:
 
 @dataclass(frozen=True)
 class Insert:
-    """Insert `xml` into the node `target` selects, derived from `refs` (st:ids)."""
+    """Insert `xml` into the node `target` selects, derived from `refs` (st:ids), with
+    `acl` applied to it."""
     target: str
     xml: str
     refs: tuple[str, ...] = ()
     vars: Vars = field(default_factory=dict[str, Any])
+    acl: bytes | None = None
 
 
 @dataclass(frozen=True)
@@ -73,31 +75,31 @@ class Service:
     def __init__(self, kv: KVStore) -> None:
         self._store = Store(kv)
 
-    def transaction(self, acl: bytes = b"") -> "Transaction":
-        return Transaction(self._store, acl)
+    def transaction(self, acls: Iterable[bytes] = ()) -> "Transaction":
+        return Transaction(self._store, acls)
 
-    def insert(self, acl: bytes, target: str, xml: str, refs: Sequence[str] = (),
-               vars: Vars | None = None) -> Inserted:
-        with self.transaction(acl) as tx:
-            return tx.insert(target, xml, refs, vars)
+    def insert(self, acls: Iterable[bytes], target: str, xml: str, refs: Sequence[str] = (),
+               vars: Vars | None = None, acl: bytes | None = None) -> Inserted:
+        with self.transaction(acls) as tx:
+            return tx.insert(target, xml, refs, vars, acl)
 
-    def query(self, acl: bytes, xpath: str, vars: Vars | None = None,
+    def query(self, acls: Iterable[bytes], xpath: str, vars: Vars | None = None,
               at: str | None = None) -> Any:
-        with self.transaction(acl) as tx:
+        with self.transaction(acls) as tx:
             return tx.query(xpath, vars, at)
 
-    def shred(self, acl: bytes, target: str, vars: Vars | None = None) -> int:
+    def shred(self, acls: Iterable[bytes], target: str, vars: Vars | None = None) -> int:
         """Returns how many nodes were removed."""
-        with self.transaction(acl) as tx:
+        with self.transaction(acls) as tx:
             return tx.shred(target, vars)
 
-    def stale(self, acl: bytes, target: str, vars: Vars | None = None) -> list[Stale]:
-        with self.transaction(acl) as tx:
+    def stale(self, acls: Iterable[bytes], target: str, vars: Vars | None = None) -> list[Stale]:
+        with self.transaction(acls) as tx:
             return tx.stale(target, vars)
 
-    def batch(self, acl: bytes, ops: Sequence[Op]) -> list[Any]:
+    def batch(self, acls: Iterable[bytes], ops: Sequence[Op]) -> list[Any]:
         """Run `ops` in order as one single threaded transaction."""
-        with self.transaction(acl) as tx:
+        with self.transaction(acls) as tx:
             results: list[Any] = []
             for i, op in enumerate(ops):
                 try:
@@ -111,13 +113,13 @@ class Service:
 class Transaction:
     """Transaction context manager."""
 
-    def __init__(self, store: Store, acl: bytes) -> None:
+    def __init__(self, store: Store, acls: Iterable[bytes]) -> None:
         self._store = store
-        self._acl = acl
+        self._acls = acls
         self._root: Root | None = None
 
     def __enter__(self) -> "Transaction":
-        self._root = self._store.snapshot(self._acl)
+        self._root = self._store.snapshot(self._acls)
         return self
 
     def __exit__(
@@ -131,8 +133,8 @@ class Transaction:
         self._root = None
 
     def insert(self, target: str, xml: str, refs: Sequence[str] = (),
-               vars: Vars | None = None) -> Inserted:
-        result: Inserted = self.run(Insert(target, xml, tuple(refs), vars or {}))
+               vars: Vars | None = None, acl: bytes | None = None) -> Inserted:
+        result: Inserted = self.run(Insert(target, xml, tuple(refs), vars or {}, acl))
         return result
 
     def query(self, xpath: str, vars: Vars | None = None, at: str | None = None) -> Any:
@@ -154,8 +156,8 @@ class Transaction:
 
 def _run(root: Root, op: Op) -> Any:
     match op:
-        case Insert(target, xml, refs, vars):
-            el = _one(root, target, vars).insert_sealed(xml, refs)
+        case Insert(target, xml, refs, vars, acl):
+            el = _one(root, target, vars).insert_sealed(xml, refs, acl=acl)
             return Inserted(el.node_id, el.integrity)
         case Query(xpath, vars, at):
             return detach(query(root if at is None else root.node(at), xpath, **vars))

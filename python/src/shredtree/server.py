@@ -1,5 +1,5 @@
 """Simple HTTP transport for shredtree.rest.
-    POST /<endpoint> with a JSON body, the acl as the bearer token.
+    POST /<endpoint> with a JSON body; the bearer token is the ACL secrets, comma-separated.
 
     python -m shredtree.server --dir DATA --port 8080
 """
@@ -45,7 +45,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 - name fixed by BaseHTTPRequestHandler
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        status, reply = call(self.svc, self._acl(), self.path, body)
+        status, reply = call(self.svc, self._acls(), self.path, body)
         data = reply.encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -53,9 +53,10 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def _acl(self) -> bytes:
+    def _acls(self) -> list[bytes]:
         auth = self.headers.get("Authorization", "")
-        return auth.removeprefix("Bearer ").encode() if auth.startswith("Bearer ") else b""
+        token = auth.removeprefix("Bearer ") if auth.startswith("Bearer ") else ""
+        return [a.encode() for a in token.split(",") if a]
 
     @override
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002

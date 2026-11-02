@@ -11,7 +11,7 @@ from typing import Any, override
 from xml.etree import ElementPath
 import xml.etree.ElementTree as ET
 
-from ._keys import Resolver, seal_content
+from ._keys import Resolver, acl_id, seal_content
 from ._records import Field, Forest, Rec, Ref
 from .errors import BadRequest, NotFound, Unavailable
 
@@ -129,18 +129,20 @@ class Handle(ABC):
             yield from c.iter(tag)
 
     # -- writing: the only way in -----------------------------------------------------
-    def insert_sealed(self, xml: str, refs: Sequence[str] = (),
-                      index: int | None = None) -> "Element":
+    def insert_sealed(self, xml: str, refs: Sequence[str] = (), index: int | None = None,
+                      acl: bytes | None = None) -> "Element":
         """Seal `xml` in as a child (at `index`, else last), derived from the nodes
         whose st:ids are `refs`. Each ref's current hash is remembered, so the new node
-        stops opening if that node is shredded or changes."""
+        stops opening if that node is shredded or changes. `acl`, which must be in the
+        session's keyring, is applied to the new node and so protects its subtree."""
         try:
             el = ET.fromstring(xml.encode())
         except ET.ParseError as e:
             raise BadRequest(f"not well-formed XML: {e}") from None
-        return self._seal_in(el, refs, index)
+        return self._seal_in(el, refs, index, acl)
 
-    def _seal_in(self, el: ET.Element, refs: Sequence[str], index: int | None) -> "Element":
+    def _seal_in(self, el: ET.Element, refs: Sequence[str], index: int | None,
+                 acl: bytes | None = None) -> "Element":
         ctx = self._ctx
         parent_key, chain = self._parent()
         here = {r["id"] for r in chain}
@@ -158,9 +160,12 @@ class Handle(ABC):
                 raise Unavailable(f"upstream node {ref} is not accessible")
             pinned.append({"id": rid, "integrity": h.hex()})
             hashes.append(h)
+        aid = acl_id(acl) if acl else None
+        if aid is not None and not ctx.resolver.holds(aid):
+            raise BadRequest("the ACL to apply is not in this session's keyring")
         nid = secrets.token_bytes(16)
-        key = ctx.resolver.node_kdf(parent_key, nid, hashes)
-        recs = _build(ctx, el, key, nid, pinned, chain[-1]["id"] if chain else None)
+        key = ctx.resolver.node_kdf(parent_key, nid, hashes, acl or None)
+        recs = _build(ctx, el, key, nid, pinned, chain[-1]["id"] if chain else None, aid)
         ctx.add(recs, self._before(index))
         return Element(recs[0], ctx)
 
@@ -251,9 +256,10 @@ class Root(Handle):
         self._ctx.commit()
 
     def node(self, node_id: str) -> "Element":
-        rec = self._ctx.forest.get(node_id.lower())
-        if rec is None:
+        chain = self._ctx.forest.chain(node_id.lower())
+        if chain is None or not all(self._ctx.resolver.holds(r["acl"]) for r in chain):
             raise NotFound(f"no node {node_id}")
+        rec = chain[-1]
         if self._ctx.resolver.key(rec) is None:
             raise Unavailable(f"node {node_id} no longer opens")
         return Element(rec, self._ctx)
@@ -345,11 +351,12 @@ class Element(Handle):
 
     def stale(self) -> list[Stale]:
         """The outermost nodes beneath this one that don't open.
-        Everything beneath an element shares its acl, so these are also stale."""
+        Nodes under an ACL this session doesn't hold are not its business, so not listed."""
         out: list[Stale] = []
         for rec in self._ctx.forest.children(self._rec):
             if self._ctx.resolver.key(rec) is None:
-                out.append(Stale(rec["id"], rec["tag"], tuple(r["id"] for r in rec["refs"])))
+                if self._ctx.resolver.holds(rec["acl"]):
+                    out.append(Stale(rec["id"], rec["tag"], tuple(r["id"] for r in rec["refs"])))
             else:
                 out.extend(Element(rec, self._ctx).stale())
         return out
@@ -385,18 +392,18 @@ class Element(Handle):
 
 
 def _build(ctx: Context, el: ET.Element, key: bytes, nid: bytes, refs: list[Ref],
-           parent: str | None) -> list[Rec]:
+           parent: str | None, acl: str | None = None) -> list[Rec]:
     """`el`'s subtree as records, its own first. The top carries refs.
     Descendant keys derive from its key."""
     below: list[Rec] = []
     kids: list[str] = []
     for c in el:
         cid = secrets.token_bytes(16)
-        below.extend(_build(ctx, c, ctx.resolver.node_kdf(key, cid, ()), cid, [], nid.hex()))
+        below.extend(_build(ctx, c, ctx.resolver.node_kdf(key, cid, (), None), cid, [], nid.hex()))
         kids.append(cid.hex())
     sealed = seal_content(key, dict(el.attrib), el.text, el.tail)
-    rec: Rec = {"id": nid.hex(), "tag": el.tag, "parent": parent, "kids": kids, "refs": refs,
-                **sealed}
+    rec: Rec = {"id": nid.hex(), "tag": el.tag, "acl": acl, "parent": parent, "kids": kids,
+                "refs": refs, **sealed}
     return [rec, *below]
 
 

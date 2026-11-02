@@ -1,0 +1,15 @@
+{
+  "title": "Stale lists only what the keyring can open",
+  "about": "When a source goes, each session is told about the derived nodes it can see, and nothing else.",
+  "steps": [
+    {"as": "src", "xml": "<src>source</src>"},
+    {"as": "public", "xml": "<public>made from src</public>", "from": ["src"]},
+    {"as": "private", "xml": "<private>made from src</private>", "from": ["src"], "acl": "x"}
+  ],
+  "checks": [
+    {"name": "without x, only the public derivative is stale", "shred": "src", "keys": [],
+     "gone": ["src", "public"], "stale": ["public"]},
+    {"name": "with x, both are", "shred": "src", "keys": ["x"],
+     "gone": ["src", "public", "private"], "stale": ["public", "private"]}
+  ]
+}

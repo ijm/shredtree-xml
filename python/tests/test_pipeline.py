@@ -130,15 +130,16 @@ def test_push_refuses_shredded_upstream(env: Env) -> None:
 
 def test_optional_acl_secret(env: Env) -> None:
     store, _ = env
-    with store.session(acl=b"team-a") as a:
-        a.new_post(PID)
-        s = a.push(PID, "<source><p>x</p></source>")
-        a.push(PID, "<summary><p>y</p></summary>", [s])
+    with store.session([b"team-a"]) as a:
+        s = a.push(PID, "<source><p>x</p></source>", acl=b"team-a")
+        a.push(PID, "<summary><p>y</p></summary>", [s], acl=b"team-a")
         assert a.query(PID, "count(/post/*)") == 2
-    with store.session() as default:
-        assert default.query(PID, "count(/post/*)") == 0
-    with store.session(acl=b"team-b") as b, pytest.raises(NotFound):
-        b.query(PID, "count(/post/*)")
+        a.new_post("private", acl=b"team-a")
+    for acls in ((), [b"team-b"]):
+        with store.session(acls) as other:
+            assert other.query(PID, "count(/post/*)") == 0
+            with pytest.raises(NotFound):
+                other.query("private", "count(/post/*)")
 
 
 # ---------------------------------------------------------------- tampering

@@ -27,12 +27,13 @@ function run(scenario: Scenario, check: Check): void {
   const store = new Loaded(engine, scenario);
   const ids = (refs: string[] = []) => new Map(refs.map((r) => [r, store.resolve(r)]));
   const gone = ids(check.gone), kept = ids(check.kept), stale = ids(check.stale);
+  const keys = check.keys ?? store.keys;
   if (check.shred !== undefined) store.shred(store.resolve(check.shred));
-  else if (check.insert !== undefined) store.insert(store.resolve(check.insert.into), check.insert.xml);
-  else throw new Error(`check ${check.name} neither shreds nor inserts`);
-  assert.deepEqual([...gone].filter(([, i]) => store.visible(i)).map(([r]) => r), [], "should be gone");
-  assert.deepEqual([...kept].filter(([, i]) => !store.visible(i)).map(([r]) => r), [], "should be kept");
-  if (check.stale !== undefined) assert.deepEqual(new Set(store.stale()), new Set(stale.values()));
+  else if (check.insert !== undefined)
+    store.insert(store.resolve(check.insert.into), check.insert.xml, check.insert.acl);
+  assert.deepEqual([...gone].filter(([, i]) => store.visible(i, keys)).map(([r]) => r), [], "should be gone");
+  assert.deepEqual([...kept].filter(([, i]) => !store.visible(i, keys)).map(([r]) => r), [], "should be kept");
+  if (check.stale !== undefined) assert.deepEqual(new Set(store.stale(keys)), new Set(stale.values()));
 }
 
 test("there are scenarios", () => assert.ok(files.length > 0));

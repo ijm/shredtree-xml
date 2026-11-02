@@ -1,11 +1,12 @@
 """Sealed XML with the ElementTree element interface, for building front ends on.
 
-Store.snapshot(acl) gives a transaction's Root, searchable as in ElementTree or with
+Store.snapshot(acls) gives a transaction's Root, searchable as in ElementTree or with
 query() (XPath). The only writes are insert_sealed() and shred(), with append, insert
 and remove as shims. Content is sealed once, at insert, so changing a node means
 replacing it, which will shred anything derived from it.
 """
 
+from collections.abc import Iterable
 from typing import Any
 import xml.etree.ElementTree as ET
 
@@ -23,7 +24,7 @@ from ._handles import (
     detach,
     tostring,
 )
-from ._keys import Resolver
+from ._keys import Resolver, keyring
 from ._records import Forest
 from .backend import KVStore
 from .errors import BadRequest
@@ -48,10 +49,11 @@ class Store:
     def __init__(self, kv: KVStore) -> None:
         self._kv = kv
 
-    def snapshot(self, acl: bytes = b"") -> Root:
-        """A transaction. `acl` is mixed into every key, other acls see nothing."""
+    def snapshot(self, acls: Iterable[bytes] = ()) -> Root:
+        """A transaction holding the ACL secrets `acls`: nodes under any other ACL don't
+        open."""
         forest = Forest(self._kv)
-        return Root(Context(forest, Resolver(acl, forest)))
+        return Root(Context(forest, Resolver(keyring(acls), forest)))
 
 
 def query(node: Handle, xpath: str, **variables: Any) -> Any:

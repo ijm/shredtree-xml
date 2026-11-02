@@ -12,6 +12,6 @@ def reset() -> None:
     _service = Service(MemoryKV())
 
 
-def call(endpoint: str, acl: str, body: str) -> str:
-    _, reply = rest_call(_service, acl.encode(), endpoint, body)
+def call(endpoint: str, acls: str, body: str) -> str:
+    _, reply = rest_call(_service, [a.encode() for a in acls.split(",") if a], endpoint, body)
     return reply

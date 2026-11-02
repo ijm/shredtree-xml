@@ -1,8 +1,8 @@
 """shredtree: an XML store where shredding a node also removes everything made from it.
 
-Each element is sealed under kdf(acl, parent key, st:id, *ref hashes); a ref is the
+Each element is sealed under kdf(parent key, st:id, *ref hashes[, acl]); a ref is the
 st:id of a node it was derived from plus that node's content hash (st:integrity) at the
-time. A content hash covers the node's whole subtree, so shredding or changing anything
+time, and an acl is applied only where it is named, protecting the subtree below. A content hash covers the node's whole subtree, so shredding or changing anything
 makes the keys that depend on it underivable: no dependency index is needed.
 
 Layers, each using only the one below: server (HTTP) -> rest (JSON) -> service -> tree

@@ -22,13 +22,16 @@ do. The Python tests (`python/tests/test_scenarios.py`) and the demo's tests
 
 **Steps** are inserted in order, each through the normal insert API, inside one
 top-level `<scenario/>` element. `as` names the inserted node; `into` (a ref) puts it
-inside that node instead; `from` lists the refs it was derived from.
+inside that node instead; `from` lists the refs it was derived from; `acl` is the ACL
+secret applied to it.
 
 **Refs** name nodes: a label (`"article"`), or a label and an XPath relative to that
 node (`"article/p[2]"`, `"summary/b/e/f"`) that must select exactly one element.
 
-**Checks** each start from a freshly loaded scenario and do one thing: `shred` a ref,
-or `insert` `{"into": ref, "xml": ...}`. Refs in a check are resolved before it acts.
-Then every ref in `gone` must no longer be visible, every ref in `kept` must be, and
-`stale`, if given, is exactly what the store lists as stale (outermost only). Shredded
-nodes are gone but not stale; nodes that no longer open are both.
+**Checks** each start from a freshly loaded scenario and do at most one thing: `shred`
+a ref, or `insert` `{"into": ref, "xml": ..., "acl"?: ...}`. Refs in a check are
+resolved before it acts. Then, seen through the keyring `keys` (ACL secrets; default:
+every ACL in the scenario, which is also what loading and acting use), every ref in
+`gone` must not be visible, every ref in `kept` must be, and `stale`, if given, is
+exactly what the store lists as stale (outermost only). Shredded nodes are gone but not
+stale; nodes that no longer open are both.

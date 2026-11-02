@@ -1,0 +1,23 @@
+{
+  "title": "Private parts of a public document",
+  "about": "An ACL applies to the node it is put on and everything beneath it; nested ACLs need both secrets, and something made from a private node is only as visible as that node.",
+  "steps": [
+    {"as": "doc", "xml": "<doc><p>public</p></doc>"},
+    {"as": "private", "into": "doc", "xml": "<p>private</p>", "acl": "x"},
+    {"as": "deeper", "into": "private", "xml": "<p>very private</p>", "acl": "y"},
+    {"as": "note", "into": "doc", "xml": "<note>a private note</note>", "acl": "x"},
+    {"as": "summary", "xml": "<summary>public, but made from the private note</summary>", "from": ["note"]}
+  ],
+  "checks": [
+    {"name": "without a key only the public part shows", "keys": [],
+     "kept": ["doc", "doc/p[1]"], "gone": ["private", "deeper", "note", "summary"]},
+    {"name": "x shows the private parts and what was made from them", "keys": ["x"],
+     "kept": ["doc", "private", "note", "summary"], "gone": ["deeper"]},
+    {"name": "nested ACLs need both keys: y alone shows nothing private", "keys": ["y"],
+     "kept": ["doc"], "gone": ["private", "deeper", "note", "summary"]},
+    {"name": "x and y show everything", "keys": ["x", "y"],
+     "kept": ["doc", "private", "deeper", "note", "summary"]},
+    {"name": "shredding the private note takes what was made from it", "shred": "note",
+     "kept": ["doc", "private", "deeper"], "gone": ["note", "summary"], "stale": ["summary"]}
+  ]
+}
