@@ -1,11 +1,12 @@
 // The canvas. Leaves are measured off-screen first (full text, so their heights vary),
-// then elkjs places everything, then React Flow draws it. Hovering a control haloes
-// what that action would take with it, without laying anything out again.
+// then elkjs places everything, then React Flow draws it. Hovering a node lights its
+// lineage and fades the rest; hovering a control shows, in the alarm colour, what that
+// action would take with it. None of that lays anything out again.
 
 import { Background, BackgroundVariant, Handle, Position, ReactFlow } from "@xyflow/react";
 import type { Edge, Node, NodeProps } from "@xyflow/react";
 import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Ref } from "react";
+import type { CSSProperties, Ref } from "react";
 
 import { KEY, LOCK, TRASH, UNLOCK } from "./icons.ts";
 import { layout } from "./layout.ts";
@@ -14,16 +15,29 @@ import type { Info, Item, Session, View } from "./model.ts";
 interface Data extends Record<string, unknown> {
   item: Item;
   info: Info;
+  depth?: number;  // boxes around this one: 0 at the top level
+  nest?: number;   // levels of boxes inside this one: 0 for a leaf
 }
 
 type FlowNode = Node<Data, "leaf" | "box">;
 
+/** What the pointer is showing. `focus` is the hovered node, if any. */
+export interface Highlight {
+  focus: string | null;
+  lit: Set<string>;
+  context: Set<string>;
+  doomed: Set<string>;
+}
+
 export interface Actions {
-  halo: Set<string>;
+  highlight: Highlight;
+  hover(id: string | null): void;
   preview(id: string | null, returns?: boolean): void;
   shred(id: string): void;
   setPrivate(id: string, priv: boolean): void;
 }
+
+export const QUIET: Highlight = { focus: null, lit: new Set(), context: new Set(), doomed: new Set() };
 
 const ActionsContext = createContext<Actions | null>(null);
 
@@ -39,12 +53,11 @@ function Head({ item, info }: Data) {
     <div className="head">
       <span className="what">
         {info.transform !== undefined && <span className="transform">{info.transform} →</span>}
-        <span className="tag">{item.tag}</span>
+        <span className="tag"><span className="angle">&lt;</span>{item.tag}<span className="angle">&gt;</span></span>
         {info.label !== undefined && info.label !== item.tag && <span className="label">{info.label}</span>}
         {item.attrs.map(([k, v]) => <span key={k} className="attr">{k}={v}</span>)}
         {info.acl !== undefined && <span className="acl"><span className="icon">{KEY}</span>{info.acl}</span>}
       </span>
-      <span className="id">{item.id.slice(0, 6)}</span>
       <span className="controls">
         {leaf && (
           <button
@@ -60,20 +73,33 @@ function Head({ item, info }: Data) {
           onClick={() => act.shred(item.id)}
         >{TRASH}</button>
       </span>
+      <span className="id">{item.id.slice(0, 6)}</span>
     </div>
   );
 }
 
-function classes(data: Data, halo: Set<string>, kind: string): string {
+function state(id: string, h: Highlight): string | false {
+  if (h.doomed.has(id)) return "doomed";
+  if (h.lit.has(id)) return "lit";
+  if (h.focus !== null && !h.context.has(id)) return "faded";
+  return false;
+}
+
+function classes(data: Data, h: Highlight, kind: string): string {
   return ["st-node", kind, data.info.derived ? "is-derived" : "is-source",
-          data.info.acl !== undefined && "private", halo.has(data.item.id) && "halo"]
+          data.info.acl !== undefined && "private", state(data.item.id, h)]
     .filter(Boolean).join(" ");
 }
 
+function shape(data: Data): CSSProperties {
+  return { "--depth": data.depth ?? 0, "--nest": data.nest ?? 0 } as CSSProperties;
+}
+
 function LeafNode({ data }: NodeProps<FlowNode>) {
-  const { halo } = useActions();
+  const act = useActions();
   return (
-    <div className={classes(data, halo, "leaf")}>
+    <div className={classes(data, act.highlight, "leaf")} style={shape(data)}
+         onMouseEnter={() => act.hover(data.item.id)} onMouseLeave={() => act.hover(null)}>
       <Handle type="target" position={Position.Left} />
       <Head {...data} />
       {data.item.text && <div className="body">{data.item.text}</div>}
@@ -83,9 +109,10 @@ function LeafNode({ data }: NodeProps<FlowNode>) {
 }
 
 function BoxNode({ data }: NodeProps<FlowNode>) {
-  const { halo } = useActions();
+  const act = useActions();
   return (
-    <div className={classes(data, halo, "box")}>
+    <div className={classes(data, act.highlight, "box")} style={shape(data)}
+         onMouseEnter={() => act.hover(data.item.id)} onMouseLeave={() => act.hover(null)}>
       <Handle type="target" position={Position.Left} />
       <Head {...data} />
       <Handle type="source" position={Position.Right} />
@@ -95,16 +122,28 @@ function BoxNode({ data }: NodeProps<FlowNode>) {
 
 const nodeTypes = { leaf: LeafNode, box: BoxNode };
 
+/** How deep the boxes inside `id` go, which sets how green its border is. */
+function nest(view: View, id: string): number {
+  const { kids } = view.items.get(id)!;
+  return kids.length ? 1 + Math.max(...kids.map((k) => nest(view, k))) : 0;
+}
+
+/** How many boxes enclose `id`, which sets how dim it is. */
+function depth(view: View, id: string): number {
+  const { parent } = view.items.get(id)!;
+  return parent === null ? 0 : 1 + depth(view, parent);
+}
+
 /** The leaves as they will be drawn, but off-screen, so they can be measured. */
 function Measure({ view, session, into }: { view: View; session: Session; into: Ref<HTMLDivElement> }) {
-  const idle: Actions = { halo: new Set(), preview() {}, shred() {}, setPrivate() {} };
+  const idle: Actions = { highlight: QUIET, hover() {}, preview() {}, shred() {}, setPrivate() {} };
   return (
     <ActionsContext value={idle}>
       <div className="measure" ref={into} aria-hidden>
         {view.order.filter((id) => !view.items.get(id)!.kids.length).map((id) => {
           const data = { item: view.items.get(id)!, info: session.info(view, id) };
           return (
-            <div key={id} data-id={id} className={classes(data, idle.halo, "leaf")}>
+            <div key={id} data-id={id} className={classes(data, QUIET, "leaf")}>
               <Head {...data} />
               {data.item.text && <div className="body">{data.item.text}</div>}
             </div>
@@ -139,19 +178,30 @@ export function Graph({ view, session, actions }: { view: View; session: Session
           parentId: item.parent ?? undefined,
           position: { x, y },
           style: item.kids.length ? { width, height } : undefined,
-          data: { item, info: session.info(view, id) },
+          data: { item, info: session.info(view, id), depth: depth(view, id), nest: nest(view, id) },
         };
       }));
     });
     return () => { live = false; };
   }, [view, session]);
 
+  const h = actions.highlight;
   const edges = useMemo(() => view.edges.map((e): Edge => ({
     id: `${e.source}>${e.target}`,
     source: e.source,
     target: e.target,
-    className: actions.halo.has(e.target) ? "halo" : undefined,
-  })), [view, actions.halo]);
+    zIndex: 1000,  // above every box, so edges leaving nested nodes aren't cut by borders
+    interactionWidth: 0,
+    // A box enclosing the lineage is context, not lit, but an edge leaving it or
+    // arriving at it carries the lineage's content all the same; it needs a lit end.
+    className: (h.doomed.has(e.target) ? "doomed"
+      : inLineage(e.source) && inLineage(e.target) && (h.lit.has(e.source) || h.lit.has(e.target)) ? "lit"
+      : h.focus !== null ? "faded" : undefined),
+  })), [view, h]);
+
+  function inLineage(id: string): boolean {
+    return h.lit.has(id) || h.context.has(id);
+  }
 
   return (
     <ActionsContext value={actions}>

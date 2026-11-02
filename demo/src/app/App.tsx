@@ -5,7 +5,8 @@ import type { Engine } from "../engine/engine.ts";
 import { SCENARIOS, engine as startEngine } from "./boot.ts";
 import { Graph } from "./Graph.tsx";
 import { KEY } from "./icons.ts";
-import type { Actions } from "./Graph.tsx";
+import { QUIET } from "./Graph.tsx";
+import type { Actions, Highlight } from "./Graph.tsx";
 import { Session } from "./model.ts";
 
 export function App() {
@@ -16,7 +17,9 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [keys, setKeys] = useState<string[]>([]);
   const [writes, wrote] = useReducer((n: number) => n + 1, 0);
+  const [focus, setFocus] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ id: string; returns: boolean } | null>(null);
+  const [keyHover, setKeyHover] = useState<string | null>(null);
 
   useEffect(() => {
     startEngine().then(setEngine, (e: unknown) => setError(`engine failed to start: ${e}`));
@@ -45,13 +48,30 @@ export function App() {
       setError(String(e));
     }
     setPreview(null);
+    setFocus(null);
     wrote();
   };
 
-  const halo = useMemo(() => view && session && preview && view.items.has(preview.id)
-    ? session.doomed(view, preview.id, preview.returns) : new Set<string>(), [view, preview, session]);
+  const highlight = useMemo((): Highlight => {
+    if (!view || !session) return QUIET;
+    const shown = focus !== null && view.items.has(focus) ? focus : null;
+    return {
+      focus: shown,
+      ...(shown === null ? { lit: new Set<string>(), context: new Set<string>() } : session.lineage(view, shown)),
+      doomed: preview && view.items.has(preview.id)
+        ? session.doomed(view, preview.id, preview.returns)
+        : keyHover !== null && keys.includes(keyHover) ? vanishing(keyHover) : new Set<string>(),
+    };
+
+    /** What would drop out of view without `key`: asked of the store, not worked out. */
+    function vanishing(key: string): Set<string> {
+      const without = session!.view(keys.filter((k) => k !== key)).items;
+      return new Set([...view!.items.keys()].filter((id) => !without.has(id)));
+    }
+  }, [view, session, focus, preview, keyHover, keys]);
   const actions: Actions = {
-    halo,
+    highlight,
+    hover: setFocus,
     preview: (id, returns = false) => setPreview(id === null ? null : { id, returns }),
     shred: (id) => act(() => session!.shred(id, keys)),
     setPrivate: (id, priv) => act(() => session!.setPrivate(view!, id, priv, keys)),
@@ -69,16 +89,17 @@ export function App() {
           </select>
           <button type="button" className="icon" title="load the scenario again" onClick={reload}>↺</button>
         </fieldset>
-        <fieldset className="group">
+        <fieldset className="group keyring">
           <legend>keyring</legend>
           {session?.acls.map((acl) => {
-            const held = keys.includes(acl);
+            const present = keys.includes(acl);
             return (
               <button
-                type="button" key={acl} className={held ? "key held" : "key"} aria-pressed={held}
-                title={held ? `holding ${acl}: click to drop it` : `not holding ${acl}: click to add it`}
-                onClick={() => setKeys(held ? keys.filter((k) => k !== acl) : [...keys, acl].sort())}
-              ><span className="icon">{KEY}</span>{acl}<span className="state">{held ? "held" : "not held"}</span></button>
+                type="button" key={acl} className={present ? "key present" : "key"} aria-pressed={present}
+                title={present ? `key ${acl} is in the keyring: click to remove it` : `key ${acl} is not in the keyring: click to add it`}
+                onMouseEnter={() => setKeyHover(acl)} onMouseLeave={() => setKeyHover(null)}
+                onClick={() => setKeys(present ? keys.filter((k) => k !== acl) : [...keys, acl].sort())}
+              ><span className="icon">{KEY}</span><span className="name">{acl}</span><span className="state">{present ? "present" : "absent"}</span></button>
             );
           })}
         </fieldset>

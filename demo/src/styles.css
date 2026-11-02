@@ -34,8 +34,15 @@
   --text: #a9c7d1;
   --dim: #4a6a78;
   --halo: #b6fbff;
-  --glow: rgba(140, 240, 255, 0.35);
   --leaf-width: 250px;
+  /* nesting colour: a box's border hue turns from blue to green over this many levels of
+     boxes inside it, and its tint turns the same distance the other way */
+  --nest-steps: 5;
+  --hue-blue: 232.5;
+  --hue-green: 140;
+  /* hover state changes: into a state, and back to rest (exits read better a bit faster) */
+  --t-in: 0.25s;
+  --t-out: 0.15s;
 
   color-scheme: dark;
   background: var(--bg);
@@ -103,16 +110,27 @@ select option { background: var(--bg); }
 .panel select { max-width: 360px; padding: 3px 6px; }
 .group > button.icon { font-size: 18px; line-height: 1; padding: 1px 6px; }
 
-.key { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; color: var(--dim); border-style: dashed; }
+/* keys stack vertically at one fixed width, so nothing shifts as they change state */
+.group.keyring { flex-direction: column; align-items: stretch; gap: 4px; }
+.key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 13em;
+  padding: 2px 8px;
+  color: var(--dim);
+  border-style: dashed;
+}
+.key .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .key .icon { font-size: 18px; line-height: 1; }
 .key .state { font: 300 10px "Mono", monospace; text-transform: uppercase; letter-spacing: 0.1em; }
-.key.held {
+.key.present {
   color: var(--bg);
   background: var(--green);
   border: 1px solid var(--green);
   box-shadow: 0 0 10px 1px rgba(69, 214, 160, 0.35);
 }
-.key.held:hover:not(:disabled) { color: var(--bg); border-color: var(--halo); }
+.key.present:hover:not(:disabled) { color: var(--bg); border-color: var(--halo); }
 
 .error {
   padding: 4px 12px;
@@ -127,22 +145,53 @@ select option { background: var(--bg); }
 .react-flow { --xy-background-color: var(--bg); --xy-background-pattern-color: var(--grid); }
 
 /* -- nodes ----------------------------------------------------------------------- */
+/* Registered as numbers so state changes transition the hue and brightness themselves:
+   a hue swing goes round the wheel instead of cutting through grey as a colour blend
+   would. The alarm hue is the node's hue plus 180, never wrapped, so it always turns
+   the same way. */
+@property --hue { syntax: "<number>"; inherits: false; initial-value: 232.5; }
+@property --boost { syntax: "<number>"; inherits: false; initial-value: 0; }
+@property --edge-hue { syntax: "<number>"; inherits: true; initial-value: 232.5; }
+@property --edge-boost { syntax: "<number>"; inherits: true; initial-value: 0; }
+
 /* React Flow turns pointer events off on nodes that can't be dragged or selected */
 .st-node {
   pointer-events: all;
-  border: 1px solid var(--line);
+  /* hue: blue to green, a fixed step per level of boxes inside (--nest);
+     lightness: brightest at the top level, a fixed step dimmer per enclosing box
+     (--depth), never below a floor; the box tints get stronger to make up for it */
+  --nest: 0;
+  --depth: 0;
+  --turn: calc(min(var(--nest), var(--nest-steps)) / var(--nest-steps) * (var(--hue-blue) - var(--hue-green)));
+  --hue: calc(var(--hue-blue) - var(--turn));
+  --tint-hue: calc(var(--hue-blue) + var(--turn));
+  --boost: 0;  /* added lightness when lit or doomed; the glow's strength follows it */
+  --lightness: calc(0.66 - min(var(--depth), 5) * 0.05 + var(--boost));
+  --line-colour: oklch(var(--lightness) 0.15 var(--hue));
+  border: 1px solid var(--line-colour);
+  box-shadow: 0 0 0 1px oklch(var(--lightness) 0.15 var(--hue) / calc(var(--boost) / 0.22)),
+              0 0 14px 2px oklch(calc(var(--lightness) - 0.07) 0.15 var(--hue) / calc(var(--boost) * 2));
   border-radius: 2px;
+  /* back to rest quickly; into a state (below) more slowly, so the swing shows */
+  transition: --hue var(--t-out), --boost var(--t-out), opacity var(--t-out);
   --accent: var(--blue);
 }
 .st-node.is-derived { --accent: var(--green); }
 .st-node.leaf { width: var(--leaf-width); background: var(--panel); }
-.st-node.box { width: 100%; height: 100%; background: rgba(8, 20, 28, 0.25); }
+.st-node.box {
+  width: 100%;
+  height: 100%;
+  background: oklch(0.6 0.15 var(--tint-hue) / calc(0.1 + min(var(--depth), 5) * 0.025));
+}
 .st-node.private { border-style: dashed; }
 
-.st-node.halo {
-  border-color: var(--halo);
-  box-shadow: 0 0 0 1px var(--halo), 0 0 14px 2px var(--glow);
-}
+/* hovering: the lineage brightens in its own hues; what an action would destroy stays
+   bright but swings 180 degrees to the alarm side, which keeps the steps distinct;
+   anything unrelated fades */
+.st-node.lit, .st-node.doomed { --boost: 0.22; }
+.st-node.doomed { --hue: calc(var(--hue-blue) - var(--turn) + 180); }
+.st-node.faded { opacity: 0.35; }
+.st-node.lit, .st-node.doomed, .st-node.faded { transition: --hue var(--t-in), --boost var(--t-in), opacity var(--t-in); }
 
 .head {
   display: flex;
@@ -161,6 +210,7 @@ select option { background: var(--bg); }
 .leaf > .head { height: auto; min-height: 28px; padding-top: 3px; padding-bottom: 3px; }
 .head .id, .head .controls { flex-shrink: 0; }
 .head .tag { color: var(--accent); font-weight: 400; }
+.head .tag .angle { color: var(--dim); font-weight: 300; }
 .head .label { color: var(--text); }
 .head .transform { color: var(--accent); }
 .head .acl { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); }
@@ -180,8 +230,24 @@ select option { background: var(--bg); }
 
 .react-flow__handle { opacity: 0; width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; }
 
-.react-flow__edge-path { stroke: var(--line); stroke-width: 1; }
-.react-flow__edge.halo .react-flow__edge-path { stroke: var(--halo); filter: drop-shadow(0 0 3px var(--glow)); }
+/* edges sit above the boxes, dim until hovering lights or alarms them */
+.react-flow__edge {
+  pointer-events: none;
+  --edge-hue: var(--hue-blue);
+  --edge-boost: 0;  /* 0 at rest, 1 lit or doomed: brightness, saturation and glow */
+  transition: --edge-hue var(--t-out), --edge-boost var(--t-out), opacity var(--t-out);
+}
+.react-flow__edge-path {
+  stroke: oklch(calc(0.45 + var(--edge-boost) * 0.37) calc(0.08 + var(--edge-boost) * 0.07) var(--edge-hue));
+  stroke-width: 1;
+  filter: drop-shadow(0 0 3px oklch(0.75 0.15 var(--edge-hue) / calc(var(--edge-boost) * 0.45)));
+}
+.react-flow__edge.lit, .react-flow__edge.doomed { --edge-boost: 1; }
+.react-flow__edge.doomed { --edge-hue: calc(var(--hue-blue) + 180); }
+.react-flow__edge.faded { opacity: 0.3; }
+.react-flow__edge.lit, .react-flow__edge.doomed, .react-flow__edge.faded {
+  transition: --edge-hue var(--t-in), --edge-boost var(--t-in), opacity var(--t-in);
+}
 
 /* off-screen copies of the leaves, for measuring */
 .measure { position: absolute; visibility: hidden; pointer-events: none; left: -10000px; top: 0; }

@@ -53,7 +53,7 @@ export class Session {
   constructor(engine: Engine, scenario: Scenario) {
     this.loaded = new Loaded(engine, scenario);
     const named = everyAcl(scenario);
-    this.acls = named.length ? named : ["private"];
+    this.acls = named.length ? named : ["Alice"];
     for (const step of scenario.steps as PipelineStep[]) {
       const id = this.loaded.ids.get(step.as)!;
       this.#labels.set(id, step.as);
@@ -124,6 +124,46 @@ export class Session {
     }
     if (returns) dead.delete(id);
     return dead;
+  }
+
+  /** `id`'s lineage: what it was made from and what was made from it, each transitively,
+   * with their subtrees; and the boxes that hold any of that, as context. A node's
+   * content includes what's inside it and is part of what encloses it, so derivation
+   * reaches through containment both ways. */
+  lineage(view: View, id: string): { lit: Set<string>; context: Set<string> } {
+    const subtree = (n: string): string[] => [n, ...view.items.get(n)!.kids.flatMap(subtree)];
+    const ancestors = (n: string): string[] => {
+      const out: string[] = [];
+      for (let p = view.items.get(n)!.parent; p !== null; p = view.items.get(p)!.parent) out.push(p);
+      return out;
+    };
+    const region = (n: string) => [...subtree(n), ...ancestors(n)];
+
+    const down = new Set([id]), touched = new Set(region(id));
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const [n, refs] of this.#derived) {
+        if (view.items.has(n) && !down.has(n) && refs.some((r) => touched.has(r))) {
+          down.add(n);
+          for (const m of region(n)) touched.add(m);
+          grew = true;
+        }
+      }
+    }
+    const up = new Set<string>(), todo = [id];
+    for (let n = todo.pop(); n !== undefined; n = todo.pop()) {
+      for (const m of region(n)) {
+        for (const r of this.#derived.get(m) ?? []) {
+          if (view.items.has(r) && !up.has(r)) {
+            up.add(r);
+            todo.push(r);
+          }
+        }
+      }
+    }
+    const lit = new Set([...down, ...up].flatMap(subtree));
+    const context = new Set([...lit].flatMap(ancestors).filter((n) => !lit.has(n)));
+    return { lit, context };
   }
 
   shred(id: string, keys: string[]): void {

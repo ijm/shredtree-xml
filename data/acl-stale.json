@@ -2,14 +2,14 @@
   "title": "Stale lists only what the keyring can open",
   "about": "When a source goes, each session is told about the derived nodes it can see, and nothing else.",
   "steps": [
-    {"as": "src", "xml": "<src>source</src>"},
-    {"as": "public", "transform": "copy", "xml": "<public>made from src</public>", "from": ["src"]},
-    {"as": "private", "transform": "copy", "xml": "<private>made from src</private>", "from": ["src"], "acl": "x"}
+    {"as": "doc 1", "xml": "<doc><para>source</para></doc>"},
+    {"as": "public", "transform": "copy", "xml": "<public>made from doc 1</public>", "from": ["doc 1"]},
+    {"as": "private", "transform": "copy", "xml": "<private>made from doc 1</private>", "from": ["doc 1"], "acl": "Alice"}
   ],
   "checks": [
-    {"name": "without x, only the public derivative is stale", "shred": "src", "keys": [],
-     "gone": ["src", "public"], "stale": ["public"]},
-    {"name": "with x, both are", "shred": "src", "keys": ["x"],
-     "gone": ["src", "public", "private"], "stale": ["public", "private"]}
+    {"name": "without Alice's key, only the public derivative is stale", "shred": "doc 1", "keys": [],
+     "gone": ["doc 1", "public"], "stale": ["public"]},
+    {"name": "with Alice's key, both are", "shred": "doc 1", "keys": ["Alice"],
+     "gone": ["doc 1", "public", "private"], "stale": ["public", "private"]}
   ]
 }

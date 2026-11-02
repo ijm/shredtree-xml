@@ -2,18 +2,18 @@
   "title": "Changing a source",
   "about": "Shredding a child of a source, or adding one, changes the source: what was derived from the whole goes, what was derived from an unchanged part stays.",
   "steps": [
-    {"as": "src", "xml": "<src><keep>public</keep><secret>shred me</secret></src>"},
-    {"as": "derived", "transform": "summarise", "xml": "<derived>made from src</derived>", "from": ["src"]},
-    {"as": "from_keep", "transform": "copy", "xml": "<from_keep>made from keep</from_keep>", "from": ["src/keep"]},
-    {"as": "other", "xml": "<other>unrelated</other>"},
-    {"as": "d2", "transform": "summarise", "xml": "<d2>made from other</d2>", "from": ["other"]}
+    {"as": "doc 1", "xml": "<doc><para>public</para><para>shred me</para></doc>"},
+    {"as": "summary 1", "transform": "summarise", "xml": "<summary>made from doc 1</summary>", "from": ["doc 1"]},
+    {"as": "from para 1", "transform": "copy", "xml": "<copy>made from the first para</copy>", "from": ["doc 1/para[1]"]},
+    {"as": "doc 2", "xml": "<doc><para>unrelated</para></doc>"},
+    {"as": "summary 2", "transform": "summarise", "xml": "<summary>made from doc 2</summary>", "from": ["doc 2"]}
   ],
   "checks": [
-    {"name": "shredding a child kills what was derived from its parent", "shred": "src/secret",
-     "gone": ["src/secret", "derived"], "kept": ["src", "src/keep", "from_keep", "other", "d2"],
-     "stale": ["derived"]},
-    {"name": "inserting into a node kills what was derived from it", "insert": {"into": "src", "xml": "<added>new</added>"},
-     "gone": ["derived"], "kept": ["src", "src/keep", "src/secret", "from_keep", "other", "d2"],
-     "stale": ["derived"]}
+    {"name": "shredding a child kills what was derived from its parent", "shred": "doc 1/para[2]",
+     "gone": ["doc 1/para[2]", "summary 1"], "kept": ["doc 1", "doc 1/para[1]", "from para 1", "doc 2", "summary 2"],
+     "stale": ["summary 1"]},
+    {"name": "inserting into a node kills what was derived from it", "insert": {"into": "doc 1", "xml": "<para>new</para>"},
+     "gone": ["summary 1"], "kept": ["doc 1", "doc 1/para[1]", "doc 1/para[2]", "from para 1", "doc 2", "summary 2"],
+     "stale": ["summary 1"]}
   ]
 }

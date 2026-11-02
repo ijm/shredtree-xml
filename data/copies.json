@@ -2,13 +2,13 @@
   "title": "Two copies of the same text",
   "about": "Identical content pushed twice is two nodes: shredding one copy kills only what was derived from that copy.",
   "steps": [
-    {"as": "first", "xml": "<source><p>same text</p></source>"},
-    {"as": "second", "xml": "<source><p>same text</p></source>"},
-    {"as": "from_first", "transform": "extract", "xml": "<from_first><p>from_first 1</p><p>from_first 2</p></from_first>", "from": ["first"]},
-    {"as": "from_second", "transform": "extract", "xml": "<from_second><p>from_second 1</p><p>from_second 2</p></from_second>", "from": ["second"]}
+    {"as": "doc 1", "xml": "<doc><para>same text</para></doc>"},
+    {"as": "doc 2", "xml": "<doc><para>same text</para></doc>"},
+    {"as": "from doc 1", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1"]},
+    {"as": "from doc 2", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 2"]}
   ],
   "checks": [
-    {"name": "shredding one copy kills only what was derived from it", "shred": "first",
-     "gone": ["first", "from_first"], "kept": ["second", "from_second"], "stale": ["from_first"]}
+    {"name": "shredding one copy kills only what was derived from it", "shred": "doc 1",
+     "gone": ["doc 1", "from doc 1"], "kept": ["doc 2", "from doc 2"], "stale": ["from doc 1"]}
   ]
 }

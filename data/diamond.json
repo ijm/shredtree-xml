@@ -2,14 +2,14 @@
   "title": "A merge of two sources",
   "about": "Something derived from two sources dies if either of them goes.",
   "steps": [
-    {"as": "one", "xml": "<source><p>one</p></source>"},
-    {"as": "two", "xml": "<source><p>two</p></source>"},
-    {"as": "merge", "transform": "merge", "xml": "<merge><p>merge 1</p><p>merge 2</p></merge>", "from": ["one", "two"]}
+    {"as": "doc 1", "xml": "<doc><para>one</para></doc>"},
+    {"as": "doc 2", "xml": "<doc><para>two</para></doc>"},
+    {"as": "merge", "transform": "merge", "xml": "<merge><para>merge 1</para><para>merge 2</para></merge>", "from": ["doc 1", "doc 2"]}
   ],
   "checks": [
-    {"name": "shredding the second parent kills the merge", "shred": "two",
-     "gone": ["two", "merge"], "kept": ["one"], "stale": ["merge"]},
-    {"name": "shredding the first parent kills the merge", "shred": "one",
-     "gone": ["one", "merge"], "kept": ["two"], "stale": ["merge"]}
+    {"name": "shredding the second parent kills the merge", "shred": "doc 2",
+     "gone": ["doc 2", "merge"], "kept": ["doc 1"], "stale": ["merge"]},
+    {"name": "shredding the first parent kills the merge", "shred": "doc 1",
+     "gone": ["doc 1", "merge"], "kept": ["doc 2"], "stale": ["merge"]}
   ]
 }
