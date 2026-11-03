@@ -123,14 +123,13 @@ select option { background: var(--bg); }
   width: 13em;
   padding: 2px 8px;
   color: var(--dim);
-  border-style: dashed;
 }
 .key .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .key .state { font: 300 10px "Mono", monospace; text-transform: uppercase; letter-spacing: 0.1em; }
 .key.present {
   color: var(--bg);
   background: var(--green);
-  border: 1px solid var(--green);
+  border-color: var(--green);
   box-shadow: 0 0 10px 1px rgba(69, 214, 160, 0.35);
 }
 .key.present:hover:not(:disabled) { color: var(--bg); border-color: var(--halo); }
@@ -176,6 +175,7 @@ select option { background: var(--bg); }
   --ring: oklch(var(--lightness) 0.15 var(--hue) / calc(var(--boost) / 0.22));
   --glow: oklch(calc(var(--lightness) - 0.07) 0.15 var(--hue) / calc(var(--boost) * 2));
   --name-colour: oklch(calc(0.72 + var(--boost)) 0.06 var(--hue));
+  --dash-width: calc(1px + var(--boost) * 4.545px);  /* a keyed border: 1px, 2px when lit */
   border: 1px solid var(--line-colour);
   box-shadow: 0 0 0 1px var(--ring), 0 0 14px 2px var(--glow);
   border-radius: 2px;
@@ -192,7 +192,24 @@ select option { background: var(--bg); }
   --fill: oklch(0.6 0.15 var(--tint-hue) / calc(0.1 + min(var(--depth), 5) * 0.025));
   background: var(--fill);
 }
-.st-node.private { border-style: dashed; }
+/* a node with a key applied: its border drawn as long dashes with short gaps (CSS's own
+   dashed is about half gap, which reads as "optional"). The dashes are painted into a
+   transparent border in the node's line colour, so they take every state; when lit they
+   thicken in place of the solid ring, which would fill the gaps. */
+.st-node.private {
+  --dash: 30px;
+  --gap: 3px;
+  --dash-h: repeating-linear-gradient(90deg, var(--line-colour) 0 var(--dash), transparent var(--dash) calc(var(--dash) + var(--gap)));
+  --dash-v: repeating-linear-gradient(180deg, var(--line-colour) 0 var(--dash), transparent var(--dash) calc(var(--dash) + var(--gap)));
+  --ring: transparent;
+  border-color: transparent;
+  background:
+    var(--dash-h) top / 100% var(--dash-width) no-repeat border-box,
+    var(--dash-h) bottom / 100% var(--dash-width) no-repeat border-box,
+    var(--dash-v) left / var(--dash-width) 100% no-repeat border-box,
+    var(--dash-v) right / var(--dash-width) 100% no-repeat border-box,
+    linear-gradient(var(--fill), var(--fill)) padding-box;
+}
 
 /* a step's name: a tab standing on the node's top edge, in the border's colour and
    style. It covers the stretch of top border beneath it with the node's own fill on a
@@ -215,7 +232,18 @@ select option { background: var(--bg); }
   box-shadow: 0 0 0 1px var(--ring), 0 0 14px 2px var(--glow);
   clip-path: inset(-24px -24px 0 -24px);
 }
-.st-node.private > .tab { border-style: dashed; }
+.st-node.private > .tab {
+  /* reach down over the node's top dashes as they thicken, so the join stays clean */
+  bottom: calc(100% - var(--dash-width) + 1px);
+  height: calc(var(--tab-height) + var(--dash-width) - 1px);
+  border-color: transparent;
+  background:
+    var(--dash-h) top / 100% var(--dash-width) no-repeat border-box,
+    var(--dash-v) left / var(--dash-width) 100% no-repeat border-box,
+    var(--dash-v) right / var(--dash-width) 100% no-repeat border-box,
+    linear-gradient(var(--fill), var(--fill)) padding-box,
+    linear-gradient(var(--bg), var(--bg)) padding-box;
+}
 
 /* hovering: the lineage brightens in its own hues; what an action would destroy stays
    bright but swings 180 degrees to the alarm side, which keeps the steps distinct;
