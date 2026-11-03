@@ -41,7 +41,8 @@
   --hue-blue: 232.5;
   --hue-green: 140;
   /* hover state changes: into a state, and back to rest (exits read better a bit faster) */
-  --tab-height: 16px;  /* TAB in layout.ts, which leaves room for it */
+  --header-height: 28px;  /* HEADER in layout.ts, which places a box's children below it */
+  --tab-height: 16px;     /* TAB in layout.ts, which leaves room for it */
   --t-in: 0.25s;
   --t-out: 0.15s;
 
@@ -65,6 +66,9 @@ button, select {
 }
 button:hover:not(:disabled), select:hover { border-color: var(--blue); color: var(--blue); }
 button:disabled { cursor: default; opacity: 0.4; }
+
+/* icons (glyphs from the Nerd Font) at about 1.7 times the text around them */
+.icon { font-size: 1.7em; line-height: 1; }
 select option { background: var(--bg); }
 
 /* -- frame ----------------------------------------------------------------------- */
@@ -80,7 +84,6 @@ select option { background: var(--bg); }
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   box-shadow: 0 1px 0 rgba(92, 200, 240, 0.08), 0 4px 18px rgba(0, 0, 0, 0.5);
-  font-size: 13px;
 }
 .brand {
   align-self: center;
@@ -107,9 +110,9 @@ select option { background: var(--bg); }
   letter-spacing: 0.15em;
 }
 .group.about { flex: 1 1 320px; }
-.group.about p { margin: 0; color: var(--text); }
+.group.about p { margin: 0; }
 .panel select { max-width: 360px; padding: 3px 6px; }
-.group > button.icon { font-size: 18px; line-height: 1; padding: 1px 6px; }
+.group > button.icon { padding: 1px 6px; }
 
 /* keys stack vertically at one fixed width, so nothing shifts as they change state */
 .group.keyring { flex-direction: column; align-items: stretch; gap: 4px; }
@@ -123,7 +126,6 @@ select option { background: var(--bg); }
   border-style: dashed;
 }
 .key .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-.key .icon { font-size: 18px; line-height: 1; }
 .key .state { font: 300 10px "Mono", monospace; text-transform: uppercase; letter-spacing: 0.1em; }
 .key.present {
   color: var(--bg);
@@ -177,6 +179,7 @@ select option { background: var(--bg); }
   border: 1px solid var(--line-colour);
   box-shadow: 0 0 0 1px var(--ring), 0 0 14px 2px var(--glow);
   border-radius: 2px;
+  position: relative;  /* for the name tab */
   /* back to rest quickly; into a state (below) more slowly, so the swing shows */
   transition: --hue var(--t-out), --boost var(--t-out), opacity var(--t-out);
   --accent: var(--blue);
@@ -195,7 +198,6 @@ select option { background: var(--bg); }
    style. It covers the stretch of top border beneath it with the node's own fill on a
    solid dark base, so it opens into the node the same way whether that fill is
    opaque (leaves) or a thin tint (boxes) */
-.st-node { position: relative; }
 .st-node > .tab {
   position: absolute;
   bottom: 100%;
@@ -227,7 +229,7 @@ select option { background: var(--bg); }
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
+  height: var(--header-height);
   padding: 0 4px 0 6px;
   font: 300 10px "Mono", monospace;
   color: var(--dim);
@@ -237,34 +239,29 @@ select option { background: var(--bg); }
 /* a leaf's header wraps (leaves are measured); a box's is one line, sized for layout */
 .head .what { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; flex: 1; min-width: 0; }
 .box > .head .what { flex-wrap: nowrap; overflow: hidden; }
-.leaf > .head { height: auto; min-height: 28px; padding-top: 3px; padding-bottom: 3px; }
+.leaf > .head { height: auto; min-height: var(--header-height); padding-top: 3px; padding-bottom: 3px; }
 .head .id, .head .controls { flex-shrink: 0; }
 .head .tag { color: var(--accent); font-weight: 400; }
 .head .tag .angle { color: var(--dim); font-weight: 300; }
 /* the transform, as a button that is switched off: drawn so it reads as one, not hidden */
 .head button.transform {
   padding: 0 5px;
-  font: inherit;
   line-height: 14px;
   color: var(--accent);
   border: 1px solid oklch(0.5 0.08 var(--hue-green));
-  border-radius: 2px;
   background: oklch(0.3 0.04 var(--hue-green) / 0.35);
 }
-.head button.transform:disabled { opacity: 0.6; cursor: default; }
+.head button.transform:disabled { opacity: 0.6; }
 .head .acl { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); }
-.head .acl .icon { font-size: 16px; line-height: 1; }
-
 
 .controls { display: flex; gap: 3px; opacity: 0; }
 .st-node:hover .controls, .st-node:focus-within .controls { opacity: 1; }
-.controls button { padding: 1px 4px; font-size: 17px; line-height: 1; border-color: transparent; }
+.controls button { padding: 1px 4px; border-color: transparent; }
 .controls button:hover:not(:disabled) { border-color: var(--blue); }
 
 .body {
   padding: 2px 8px 7px;
   font-size: 12px;
-  color: var(--text);
 }
 
 .react-flow__handle { opacity: 0; width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; }
@@ -289,4 +286,4 @@ select option { background: var(--bg); }
 }
 
 /* off-screen copies of the leaves, for measuring */
-.measure { position: absolute; visibility: hidden; pointer-events: none; left: -10000px; top: 0; }
+.measure { position: absolute; visibility: hidden; left: -10000px; top: 0; }

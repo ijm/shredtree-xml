@@ -25,6 +25,24 @@ export interface View {
   edges: { source: string; target: string }[];
 }
 
+/** The elements enclosing `id`, innermost first. */
+export function ancestors(view: View, id: string): string[] {
+  const out: string[] = [];
+  for (let p = view.items.get(id)!.parent; p !== null; p = view.items.get(p)!.parent) out.push(p);
+  return out;
+}
+
+/** `id` and everything inside it, in document order. */
+export function subtree(view: View, id: string): string[] {
+  return [id, ...view.items.get(id)!.kids.flatMap((k) => subtree(view, k))];
+}
+
+/** Everything whose content changes when `id`'s does: what is inside it, and what
+ * encloses it. */
+function region(view: View, id: string): string[] {
+  return [...subtree(view, id), ...ancestors(view, id)];
+}
+
 /** What the demo knows about a node beyond what the store shows. */
 export interface Info {
   label?: string;
@@ -85,39 +103,35 @@ export class Session {
   }
 
   info(view: View, id: string): Info {
-    let inherited = false, derived = this.#derived.has(id);
-    for (let p = view.items.get(id)!.parent; p !== null; p = view.items.get(p)!.parent) {
-      inherited ||= this.#acl.has(p);
-      derived ||= this.#derived.has(p);
-    }
+    const up = ancestors(view, id);
     return { label: this.#labels.get(id), transform: this.#transforms.get(id), acl: this.#acl.get(id),
-             inherited, derived };
+             inherited: up.some((p) => this.#acl.has(p)),
+             derived: [id, ...up].some((n) => this.#derived.has(n)) };
+  }
+
+  /** `id`, and every visible node made, transitively, from it, from anything inside it,
+   * or from anything enclosing it: a node's content is part of what encloses it, so a
+   * change to it changes those too. */
+  #downstream(view: View, id: string): Set<string> {
+    const reached = new Set([id]), touched = new Set(region(view, id));
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const [n, refs] of this.#derived) {
+        if (view.items.has(n) && !reached.has(n) && refs.some((r) => touched.has(r))) {
+          reached.add(n);
+          for (const m of region(view, n)) touched.add(m);
+          grew = true;
+        }
+      }
+    }
+    return reached;
   }
 
   /** What would stop opening if `id` were shredded: its subtree, then everything made
    * from anything whose hash that changes, and so on. With `returns`, `id` is put back
    * straight away (a privacy change), so it isn't counted. */
   doomed(view: View, id: string, returns = false): Set<string> {
-    const dead = new Set<string>(), changed = new Set<string>();
-    const kill = (n: string) => {
-      const todo = [n];
-      for (let m = todo.pop(); m !== undefined; m = todo.pop()) {
-        dead.add(m);
-        changed.add(m);
-        todo.push(...view.items.get(m)!.kids);
-      }
-      for (let p = view.items.get(n)!.parent; p !== null; p = view.items.get(p)!.parent) changed.add(p);
-    };
-    kill(id);
-    for (let grew = true; grew;) {
-      grew = false;
-      for (const [n, refs] of this.#derived) {
-        if (view.items.has(n) && !dead.has(n) && refs.some((r) => changed.has(r))) {
-          kill(n);
-          grew = true;
-        }
-      }
-    }
+    const dead = new Set([...this.#downstream(view, id)].flatMap((n) => subtree(view, n)));
     if (returns) dead.delete(id);
     return dead;
   }
@@ -127,28 +141,10 @@ export class Session {
    * content includes what's inside it and is part of what encloses it, so derivation
    * reaches through containment both ways. */
   lineage(view: View, id: string): { lit: Set<string>; context: Set<string> } {
-    const subtree = (n: string): string[] => [n, ...view.items.get(n)!.kids.flatMap(subtree)];
-    const ancestors = (n: string): string[] => {
-      const out: string[] = [];
-      for (let p = view.items.get(n)!.parent; p !== null; p = view.items.get(p)!.parent) out.push(p);
-      return out;
-    };
-    const region = (n: string) => [...subtree(n), ...ancestors(n)];
-
-    const down = new Set([id]), touched = new Set(region(id));
-    for (let grew = true; grew;) {
-      grew = false;
-      for (const [n, refs] of this.#derived) {
-        if (view.items.has(n) && !down.has(n) && refs.some((r) => touched.has(r))) {
-          down.add(n);
-          for (const m of region(n)) touched.add(m);
-          grew = true;
-        }
-      }
-    }
+    const down = this.#downstream(view, id);
     const up = new Set<string>(), todo = [id];
     for (let n = todo.pop(); n !== undefined; n = todo.pop()) {
-      for (const m of region(n)) {
+      for (const m of region(view, n)) {
         for (const r of this.#derived.get(m) ?? []) {
           if (view.items.has(r) && !up.has(r)) {
             up.add(r);
@@ -157,8 +153,8 @@ export class Session {
         }
       }
     }
-    const lit = new Set([...down, ...up].flatMap(subtree));
-    const context = new Set([...lit].flatMap(ancestors).filter((n) => !lit.has(n)));
+    const lit = new Set([...down, ...up].flatMap((n) => subtree(view, n)));
+    const context = new Set([...lit].flatMap((n) => ancestors(view, n)).filter((n) => !lit.has(n)));
     return { lit, context };
   }
 

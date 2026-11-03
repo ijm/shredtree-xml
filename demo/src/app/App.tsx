@@ -3,10 +3,9 @@ import { useEffect, useMemo, useReducer, useState } from "react";
 
 import type { Engine } from "../engine/engine.ts";
 import { SCENARIOS, engine as startEngine } from "./boot.ts";
-import { Graph } from "./Graph.tsx";
-import { KEY } from "./icons.ts";
-import { QUIET } from "./Graph.tsx";
+import { Graph, QUIET } from "./Graph.tsx";
 import type { Actions, Highlight } from "./Graph.tsx";
+import { KEY } from "./icons.ts";
 import { Session } from "./model.ts";
 
 export function App() {
@@ -56,11 +55,11 @@ export function App() {
     if (!view || !session) return QUIET;
     const shown = focus !== null && view.items.has(focus) ? focus : null;
     return {
+      ...(shown === null ? QUIET : session.lineage(view, shown)),
       focus: shown,
-      ...(shown === null ? { lit: new Set<string>(), context: new Set<string>() } : session.lineage(view, shown)),
       doomed: preview && view.items.has(preview.id)
         ? session.doomed(view, preview.id, preview.returns)
-        : keyHover !== null && keys.includes(keyHover) ? vanishing(keyHover) : new Set<string>(),
+        : keyHover !== null && keys.includes(keyHover) ? vanishing(keyHover) : QUIET.doomed,
     };
 
     /** What would drop out of view without `key`: asked of the store, not worked out. */

@@ -10,7 +10,7 @@ import type { ElkExtendedEdge, ElkNode, ElkPort } from "elkjs/lib/elk-api.js";
 
 import type { View } from "./model.ts";
 
-export const HEADER = 28;  // a box's header, which its children sit below
+export const HEADER = 28;  // a box's header, which its children sit below: --header-height in styles.css
 export const TAB = 16;     // a name tab's height: --tab-height in styles.css
 const PAD = 8;
 

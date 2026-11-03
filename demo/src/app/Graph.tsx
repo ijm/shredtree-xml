@@ -10,6 +10,7 @@ import type { CSSProperties, Ref } from "react";
 
 import { KEY, LOCK, TRASH, UNLOCK } from "./icons.ts";
 import { layout } from "./layout.ts";
+import { ancestors } from "./model.ts";
 import type { Info, Item, Session, View } from "./model.ts";
 
 interface Data extends Record<string, unknown> {
@@ -104,34 +105,35 @@ function shape(data: Data): CSSProperties {
   return { "--depth": data.depth ?? 0, "--nest": data.nest ?? 0 } as CSSProperties;
 }
 
-function LeafNode({ data }: NodeProps<FlowNode>) {
+function kind(item: Item): "leaf" | "box" {
+  return item.kids.length ? "box" : "leaf";
+}
+
+/** What a node shows inside its border; a leaf's text, a box's children (placed by the
+ * layout, not drawn here). Shared with Measure, so what is measured is what is drawn. */
+function Contents(data: Data) {
+  return (
+    <>
+      <Head {...data} />
+      {kind(data.item) === "leaf" && data.item.text && <div className="body">{data.item.text}</div>}
+    </>
+  );
+}
+
+function GraphNode({ data }: NodeProps<FlowNode>) {
   const act = useActions();
   return (
-    <div className={classes(data, act.highlight, "leaf")} style={shape(data)}
+    <div className={classes(data, act.highlight, kind(data.item))} style={shape(data)}
          onMouseEnter={() => act.hover(data.item.id)} onMouseLeave={() => act.hover(null)}>
       <Handle type="target" position={Position.Left} />
       <Tab {...data} />
-      <Head {...data} />
-      {data.item.text && <div className="body">{data.item.text}</div>}
+      <Contents {...data} />
       <Handle type="source" position={Position.Right} />
     </div>
   );
 }
 
-function BoxNode({ data }: NodeProps<FlowNode>) {
-  const act = useActions();
-  return (
-    <div className={classes(data, act.highlight, "box")} style={shape(data)}
-         onMouseEnter={() => act.hover(data.item.id)} onMouseLeave={() => act.hover(null)}>
-      <Handle type="target" position={Position.Left} />
-      <Tab {...data} />
-      <Head {...data} />
-      <Handle type="source" position={Position.Right} />
-    </div>
-  );
-}
-
-const nodeTypes = { leaf: LeafNode, box: BoxNode };
+const nodeTypes = { leaf: GraphNode, box: GraphNode };
 
 /** How deep the boxes inside `id` go, which sets how green its border is. */
 function nest(view: View, id: string): number {
@@ -139,35 +141,26 @@ function nest(view: View, id: string): number {
   return kids.length ? 1 + Math.max(...kids.map((k) => nest(view, k))) : 0;
 }
 
-/** How many boxes enclose `id`, which sets how dim it is. */
-function depth(view: View, id: string): number {
-  const { parent } = view.items.get(id)!;
-  return parent === null ? 0 : 1 + depth(view, parent);
-}
-
-/** The leaves as they will be drawn, but off-screen, so they can be measured. */
-function Measure({ view, session, into }: { view: View; session: Session; into: Ref<HTMLDivElement> }) {
-  const idle: Actions = { highlight: QUIET, hover() {}, preview() {}, shred() {}, setPrivate() {} };
+/** The leaves as they will be drawn, but off-screen and inert, so they can be measured. */
+function Measure({ view, infos, into }: { view: View; infos: Map<string, Info>; into: Ref<HTMLDivElement> }) {
   return (
-    <ActionsContext value={idle}>
-      <div className="measure" ref={into} aria-hidden>
-        {view.order.filter((id) => !view.items.get(id)!.kids.length).map((id) => {
-          const data = { item: view.items.get(id)!, info: session.info(view, id) };
-          return (
-            <div key={id} data-id={id} className={classes(data, QUIET, "leaf")}>
-              <Head {...data} />
-              {data.item.text && <div className="body">{data.item.text}</div>}
-            </div>
-          );
-        })}
-      </div>
-    </ActionsContext>
+    <div className="measure" ref={into} aria-hidden>
+      {view.order.filter((id) => kind(view.items.get(id)!) === "leaf").map((id) => {
+        const data = { item: view.items.get(id)!, info: infos.get(id)! };
+        return (
+          <div key={id} data-id={id} className={classes(data, QUIET, "leaf")}>
+            <Contents {...data} />
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
 export function Graph({ view, session, actions }: { view: View; session: Session; actions: Actions }) {
   const measure = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<FlowNode[] | null>(null);
+  const infos = useMemo(() => new Map(view.order.map((id) => [id, session.info(view, id)])), [view, session]);
 
   useLayoutEffect(() => {
     let live = true;
@@ -177,7 +170,7 @@ export function Graph({ view, session, actions }: { view: View; session: Session
         const { id } = (el as HTMLElement).dataset;
         sizes.set(id!, { width: (el as HTMLElement).offsetWidth, height: (el as HTMLElement).offsetHeight });
       }
-      const named = new Set(view.order.filter((id) => session.info(view, id).label !== undefined));
+      const named = new Set(view.order.filter((id) => infos.get(id)!.label !== undefined));
       const boxes = await layout(view, sizes, named);
       if (!live) return;
       setNodes(view.order.map((id): FlowNode => {
@@ -186,16 +179,16 @@ export function Graph({ view, session, actions }: { view: View; session: Session
         // leaves size themselves as they did when measured; a box takes elk's size
         return {
           id,
-          type: item.kids.length ? "box" : "leaf",
+          type: kind(item),
           parentId: item.parent ?? undefined,
           position: { x, y },
-          style: item.kids.length ? { width, height } : undefined,
-          data: { item, info: session.info(view, id), depth: depth(view, id), nest: nest(view, id) },
+          style: kind(item) === "box" ? { width, height } : undefined,
+          data: { item, info: infos.get(id)!, depth: ancestors(view, id).length, nest: nest(view, id) },
         };
       }));
     });
     return () => { live = false; };
-  }, [view, session]);
+  }, [view, infos]);
 
   const h = actions.highlight;
   const edges = useMemo(() => view.edges.map((e): Edge => ({
@@ -217,7 +210,7 @@ export function Graph({ view, session, actions }: { view: View; session: Session
 
   return (
     <ActionsContext value={actions}>
-      <Measure view={view} session={session} into={measure} />
+      <Measure view={view} infos={infos} into={measure} />
       {nodes && (
         <ReactFlow
           nodes={nodes} edges={edges} nodeTypes={nodeTypes} colorMode="dark"
