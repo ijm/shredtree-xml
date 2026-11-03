@@ -57,8 +57,11 @@ export class Session {
   /** Distinct per load, so the canvas starts afresh (and fits the view) for each. */
   readonly serial = Session.#made++;
   readonly loaded: Loaded;
-  /** The ACLs to choose from; the privacy checkbox applies the first. */
+  /** The keys to choose from: Alice's and Bob's in every scenario, and any other a
+   * scenario names. */
   readonly acls: string[];
+  /** The key the lock button applies. */
+  readonly lockKey: string;
   readonly #labels = new Map<string, string>();
   readonly #transforms = new Map<string, string>();
   readonly #derived = new Map<string, string[]>();  // st:id -> the st:ids it was made from
@@ -66,8 +69,8 @@ export class Session {
 
   constructor(engine: Engine, scenario: Scenario) {
     this.loaded = new Loaded(engine, scenario);
-    const named = everyAcl(scenario);
-    this.acls = named.length ? named : ["Alice"];
+    this.acls = [...new Set(["Alice", "Bob", ...everyAcl(scenario)])].sort();
+    this.lockKey = "Alice";
     for (const step of scenario.steps) {
       const id = this.loaded.ids.get(step.as)!;
       this.#labels.set(id, step.as);
@@ -129,7 +132,7 @@ export class Session {
 
   /** What would stop opening if `id` were shredded: its subtree, then everything made
    * from anything whose hash that changes, and so on. With `returns`, `id` is put back
-   * straight away (a privacy change), so it isn't counted. */
+   * straight away (a key change), so it isn't counted. */
   doomed(view: View, id: string, returns = false): Set<string> {
     const dead = new Set([...this.#downstream(view, id)].flatMap((n) => subtree(view, n)));
     if (returns) dead.delete(id);
@@ -164,13 +167,13 @@ export class Session {
 
   /** Content is sealed once, so changing a leaf's ACL means shredding it and inserting
    * it again, made from the same sources. It comes back last among its siblings. */
-  setPrivate(view: View, id: string, priv: boolean, keys: string[]): void {
+  setKeyed(view: View, id: string, keyed: boolean, keys: string[]): void {
     const item = view.items.get(id)!;
     const doc = new DOMParser().parseFromString("<x/>", "application/xml");
     const el = doc.createElement(item.tag);
     for (const [k, v] of item.attrs) el.setAttribute(k, v);
     el.textContent = item.text;
-    const acl = priv ? this.acls[0] : undefined;
+    const acl = keyed ? this.lockKey : undefined;
     const refs = this.#derived.get(id) ?? [];
     const [, inserted] = this.loaded.engine.batch([
       { op: "shred", target: BY_ID, vars: { i: id } },

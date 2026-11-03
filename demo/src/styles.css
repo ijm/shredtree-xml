@@ -196,7 +196,7 @@ select option { background: var(--bg); }
    dashed is about half gap, which reads as "optional"). The dashes are painted into a
    transparent border in the node's line colour, so they take every state; when lit they
    thicken in place of the solid ring, which would fill the gaps. */
-.st-node.private {
+.st-node.keyed {
   --dash: 30px;
   --gap: 3px;
   --dash-h: repeating-linear-gradient(90deg, var(--line-colour) 0 var(--dash), transparent var(--dash) calc(var(--dash) + var(--gap)));
@@ -232,7 +232,7 @@ select option { background: var(--bg); }
   box-shadow: 0 0 0 1px var(--ring), 0 0 14px 2px var(--glow);
   clip-path: inset(-24px -24px 0 -24px);
 }
-.st-node.private > .tab {
+.st-node.keyed > .tab {
   /* reach down over the node's top dashes as they thicken, so the join stays clean */
   bottom: calc(100% - var(--dash-width) + 1px);
   height: calc(var(--tab-height) + var(--dash-width) - 1px);

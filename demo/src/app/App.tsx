@@ -70,10 +70,11 @@ export function App() {
   }, [view, session, focus, preview, keyHover, keys]);
   const actions: Actions = {
     highlight,
+    lockKey: session?.lockKey ?? "",
     hover: setFocus,
     preview: (id, returns = false) => setPreview(id === null ? null : { id, returns }),
     shred: (id) => act(() => session!.shred(id, keys)),
-    setPrivate: (id, priv) => act(() => session!.setPrivate(view!, id, priv, keys)),
+    setKeyed: (id, keyed) => act(() => session!.setKeyed(view!, id, keyed, keys)),
   };
 
   const { scenario } = SCENARIOS[pick];

@@ -32,10 +32,11 @@ export interface Highlight {
 
 export interface Actions {
   highlight: Highlight;
+  lockKey: string;  // the key the lock button applies
   hover(id: string | null): void;
   preview(id: string | null, returns?: boolean): void;
   shred(id: string): void;
-  setPrivate(id: string, priv: boolean): void;
+  setKeyed(id: string, keyed: boolean): void;
 }
 
 export const QUIET: Highlight = { focus: null, lit: new Set(), context: new Set(), doomed: new Set() };
@@ -49,7 +50,7 @@ function useActions(): Actions {
 function Head({ item, info }: Data) {
   const act = useActions();
   const leaf = !item.kids.length;
-  const priv = info.acl !== undefined || info.inherited;
+  const keyed = info.acl !== undefined || info.inherited;
   return (
     <div className="head">
       <span className="what">
@@ -66,10 +67,11 @@ function Head({ item, info }: Data) {
         {leaf && (
           <button
             type="button" className="nodrag icon" disabled={info.inherited}
-            title={info.inherited ? "private through an enclosing node" : priv ? "private: make public" : "public: make private"}
+            title={info.inherited ? "keyed through an enclosing node"
+              : info.acl !== undefined ? `${info.acl}'s key: remove it` : `no key: apply ${act.lockKey}'s key`}
             onMouseEnter={() => act.preview(item.id, true)} onMouseLeave={() => act.preview(null)}
-            onClick={() => act.setPrivate(item.id, info.acl === undefined)}
-          >{priv ? LOCK : UNLOCK}</button>
+            onClick={() => act.setKeyed(item.id, info.acl === undefined)}
+          >{keyed ? LOCK : UNLOCK}</button>
         )}
         <button
           type="button" className="nodrag icon" title="shred"
@@ -97,7 +99,7 @@ function state(id: string, h: Highlight): string | false {
 
 function classes(data: Data, h: Highlight, kind: string): string {
   return ["st-node", kind, data.info.derived ? "is-derived" : "is-source",
-          data.info.acl !== undefined && "private", state(data.item.id, h)]
+          data.info.acl !== undefined && "keyed", state(data.item.id, h)]
     .filter(Boolean).join(" ");
 }
 
