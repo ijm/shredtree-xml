@@ -41,6 +41,7 @@
   --hue-blue: 232.5;
   --hue-green: 140;
   /* hover state changes: into a state, and back to rest (exits read better a bit faster) */
+  --tab-height: 16px;  /* TAB in layout.ts, which leaves room for it */
   --t-in: 0.25s;
   --t-out: 0.15s;
 
@@ -167,23 +168,52 @@ select option { background: var(--bg); }
   --tint-hue: calc(var(--hue-blue) + var(--turn));
   --boost: 0;  /* added lightness when lit or doomed; the glow's strength follows it */
   --lightness: calc(0.66 - min(var(--depth), 5) * 0.05 + var(--boost));
+  /* --hue and --boost are registered, so they don't inherit: everything a child (the
+     name tab) needs from them is worked out here, into plain properties that do */
   --line-colour: oklch(var(--lightness) 0.15 var(--hue));
+  --ring: oklch(var(--lightness) 0.15 var(--hue) / calc(var(--boost) / 0.22));
+  --glow: oklch(calc(var(--lightness) - 0.07) 0.15 var(--hue) / calc(var(--boost) * 2));
+  --name-colour: oklch(calc(0.72 + var(--boost)) 0.06 var(--hue));
   border: 1px solid var(--line-colour);
-  box-shadow: 0 0 0 1px oklch(var(--lightness) 0.15 var(--hue) / calc(var(--boost) / 0.22)),
-              0 0 14px 2px oklch(calc(var(--lightness) - 0.07) 0.15 var(--hue) / calc(var(--boost) * 2));
+  box-shadow: 0 0 0 1px var(--ring), 0 0 14px 2px var(--glow);
   border-radius: 2px;
   /* back to rest quickly; into a state (below) more slowly, so the swing shows */
   transition: --hue var(--t-out), --boost var(--t-out), opacity var(--t-out);
   --accent: var(--blue);
 }
 .st-node.is-derived { --accent: var(--green); }
-.st-node.leaf { width: var(--leaf-width); background: var(--panel); }
+.st-node.leaf { --fill: var(--panel); width: var(--leaf-width); background: var(--fill); }
 .st-node.box {
   width: 100%;
   height: 100%;
-  background: oklch(0.6 0.15 var(--tint-hue) / calc(0.1 + min(var(--depth), 5) * 0.025));
+  --fill: oklch(0.6 0.15 var(--tint-hue) / calc(0.1 + min(var(--depth), 5) * 0.025));
+  background: var(--fill);
 }
 .st-node.private { border-style: dashed; }
+
+/* a step's name: a tab standing on the node's top edge, in the border's colour and
+   style. It covers the stretch of top border beneath it with the node's own fill on a
+   solid dark base, so it opens into the node the same way whether that fill is
+   opaque (leaves) or a thin tint (boxes) */
+.st-node { position: relative; }
+.st-node > .tab {
+  position: absolute;
+  bottom: 100%;
+  left: -1px;
+  height: var(--tab-height);
+  padding: 0 7px;
+  font: 300 10px/calc(var(--tab-height) - 1px) "Mono", monospace;
+  color: var(--name-colour);
+  white-space: nowrap;
+  background: linear-gradient(var(--fill), var(--fill)), var(--bg);
+  border: 1px solid var(--line-colour);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  /* the node's ring and glow, cut off along the bottom edge where the tab joins it */
+  box-shadow: 0 0 0 1px var(--ring), 0 0 14px 2px var(--glow);
+  clip-path: inset(-24px -24px 0 -24px);
+}
+.st-node.private > .tab { border-style: dashed; }
 
 /* hovering: the lineage brightens in its own hues; what an action would destroy stays
    bright but swings 180 degrees to the alarm side, which keeps the steps distinct;
@@ -211,8 +241,17 @@ select option { background: var(--bg); }
 .head .id, .head .controls { flex-shrink: 0; }
 .head .tag { color: var(--accent); font-weight: 400; }
 .head .tag .angle { color: var(--dim); font-weight: 300; }
-.head .label { color: var(--text); }
-.head .transform { color: var(--accent); }
+/* the transform, as a button that is switched off: drawn so it reads as one, not hidden */
+.head button.transform {
+  padding: 0 5px;
+  font: inherit;
+  line-height: 14px;
+  color: var(--accent);
+  border: 1px solid oklch(0.5 0.08 var(--hue-green));
+  border-radius: 2px;
+  background: oklch(0.3 0.04 var(--hue-green) / 0.35);
+}
+.head button.transform:disabled { opacity: 0.6; cursor: default; }
 .head .acl { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); }
 .head .acl .icon { font-size: 16px; line-height: 1; }
 

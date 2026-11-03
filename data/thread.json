@@ -3,17 +3,17 @@
   "about": "A source, a summary of it and an extract of the summary, next to an unrelated source with its tags.",
   "steps": [
     {"as": "doc 1", "xml": "<doc><para>source text</para></doc>"},
-    {"as": "summary", "transform": "summarise", "xml": "<summary><para>summary 1</para><para>summary 2</para></summary>", "from": ["doc 1"]},
-    {"as": "extract", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["summary"]},
+    {"as": "summarise", "transform": "summarise", "xml": "<summary><para>summary 1</para><para>summary 2</para></summary>", "from": ["doc 1"]},
+    {"as": "extract", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["summarise"]},
     {"as": "doc 2", "xml": "<doc><para>unrelated</para></doc>"},
-    {"as": "tags", "transform": "tag", "xml": "<tags><para>tags 1</para><para>tags 2</para></tags>", "from": ["doc 2"]}
+    {"as": "tag", "transform": "tag", "xml": "<tags><para>tags 1</para><para>tags 2</para></tags>", "from": ["doc 2"]}
   ],
   "checks": [
     {"name": "shredding a source kills its whole thread", "shred": "doc 1",
-     "gone": ["doc 1", "summary", "extract"], "kept": ["doc 2", "tags"],
-     "stale": ["summary", "extract"]},
-    {"name": "shredding a middle node kills only what is downstream", "shred": "summary",
-     "gone": ["summary", "extract"], "kept": ["doc 1", "doc 2", "tags"],
+     "gone": ["doc 1", "summarise", "extract"], "kept": ["doc 2", "tag"],
+     "stale": ["summarise", "extract"]},
+    {"name": "shredding a middle node kills only what is downstream", "shred": "summarise",
+     "gone": ["summarise", "extract"], "kept": ["doc 1", "doc 2", "tag"],
      "stale": ["extract"]}
   ]
 }

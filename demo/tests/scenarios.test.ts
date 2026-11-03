@@ -1,5 +1,6 @@
 // Every scenario in data/ and every one of its checks, run on shredtree under Pyodide:
-// the same files python/tests/test_scenarios.py runs.
+// the same files python/tests/test_scenarios.py runs, with the same transforms
+// (python/tests/transform.py) making the steps that have no xml.
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -20,13 +21,15 @@ let engine: Engine;
 before(async () => {
   const manifest: Manifest = JSON.parse(readFileSync(vendor + "manifest.json", "utf8"));
   const bridge = readFileSync(new URL("../src/engine/bridge.py", import.meta.url), "utf8");
-  engine = await Engine.start(loadPyodide, vendor, manifest, bridge);
+  const transform = readFileSync(new URL("../../python/tests/transform.py", import.meta.url), "utf8");
+  engine = await Engine.start(loadPyodide, vendor, manifest, bridge, { transform });
 });
 
 function run(scenario: Scenario, check: Check): void {
   const store = new Loaded(engine, scenario);
   const ids = (refs: string[] = []) => new Map(refs.map((r) => [r, store.resolve(r)]));
   const gone = ids(check.gone), kept = ids(check.kept), stale = ids(check.stale);
+  const text = new Map(Object.entries(check.text ?? {}).map(([r, t]) => [r, [store.resolve(r), t]] as const));
   const keys = check.keys ?? store.keys;
   if (check.shred !== undefined) store.shred(store.resolve(check.shred));
   else if (check.insert !== undefined)
@@ -34,6 +37,8 @@ function run(scenario: Scenario, check: Check): void {
   assert.deepEqual([...gone].filter(([, i]) => store.visible(i, keys)).map(([r]) => r), [], "should be gone");
   assert.deepEqual([...kept].filter(([, i]) => !store.visible(i, keys)).map(([r]) => r), [], "should be kept");
   if (check.stale !== undefined) assert.deepEqual(new Set(store.stale(keys)), new Set(stale.values()));
+  assert.deepEqual(Object.fromEntries([...text].map(([r, [i]]) => [r, store.text(i, keys)])),
+                   Object.fromEntries([...text].map(([r, [, t]]) => [r, t])));
 }
 
 test("there are scenarios", () => assert.ok(files.length > 0));

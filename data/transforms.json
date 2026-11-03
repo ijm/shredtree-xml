@@ -1,0 +1,42 @@
+{
+  "title": "Transforms made by code",
+  "about": "Each derived node is made by a transform from what the store holds now; what dies when a source goes, or changes, is exactly what was made from it.",
+  "steps": [
+    {"as": "doc 1", "xml": "<doc><para>The quick brown fox.</para><para>It jumps over the lazy dog!</para></doc>"},
+    {"as": "doc 2", "xml": "<doc><para>Alice asked for her data to be removed.</para><para>Her address appeared here.</para></doc>"},
+    {"as": "uppercase", "transform": "uppercase", "from": ["doc 1/para[1]"]},
+    {"as": "lowercase", "transform": "lowercase", "from": ["doc 2"]},
+    {"as": "disemvowel", "transform": "disemvowel", "from": ["doc 1"]},
+    {"as": "concatenate", "transform": "concatenate", "from": ["doc 1", "doc 2"]},
+    {"as": "interleave", "transform": "interleave", "from": ["doc 1", "doc 2"]},
+    {"as": "count", "transform": "count", "from": ["concatenate"]}
+  ],
+  "checks": [
+    {"name": "each transform made what it says",
+     "text": {
+       "uppercase": "THE QUICK BROWN FOX.",
+       "lowercase": "alice asked for her data to be removed.|her address appeared here.",
+       "disemvowel": "Th qck brwn fx.|t jmps vr th lzy dg!",
+       "concatenate": "The quick brown fox.|It jumps over the lazy dog!|Alice asked for her data to be removed.|Her address appeared here.",
+       "interleave": "The quick brown fox.|Alice asked for her data to be removed.|It jumps over the lazy dog!|Her address appeared here.",
+       "count": "90 letters, 22 words, 4 sentences"}},
+    {"name": "shredding a paragraph kills what was made from its document, but not from its sibling",
+     "shred": "doc 1/para[2]",
+     "gone": ["doc 1/para[2]", "disemvowel", "concatenate", "interleave", "count"],
+     "kept": ["doc 1", "doc 1/para[1]", "uppercase", "doc 2", "lowercase"],
+     "stale": ["disemvowel", "concatenate", "interleave", "count"]},
+    {"name": "shredding a document kills everything made from it, transitively", "shred": "doc 2",
+     "gone": ["doc 2", "lowercase", "concatenate", "interleave", "count"],
+     "kept": ["doc 1", "uppercase", "disemvowel"],
+     "stale": ["lowercase", "concatenate", "interleave", "count"]},
+    {"name": "adding a paragraph kills what was made from the whole document",
+     "insert": {"into": "doc 1", "xml": "<para>Later.</para>"},
+     "gone": ["disemvowel", "concatenate", "interleave", "count"],
+     "kept": ["doc 1", "uppercase", "doc 2", "lowercase"],
+     "stale": ["disemvowel", "concatenate", "interleave", "count"]},
+    {"name": "shredding a derived node kills only what was made from it", "shred": "concatenate",
+     "gone": ["concatenate", "count"],
+     "kept": ["doc 1", "doc 2", "uppercase", "lowercase", "disemvowel", "interleave"],
+     "stale": ["count"]}
+  ]
+}

@@ -58,6 +58,7 @@ fallback_version = "0.0.0"  # used until the repo has a tag
 testpaths = ["tests"]
 # importlib: tests import the installed package, never a copy found via sys.path
 addopts = ["--import-mode=importlib", "-ra", "--strict-markers", "--strict-config"]
+pythonpath = ["tests"]  # helper modules shared by the tests, e.g. transform
 xfail_strict = true
 timeout = 60  # a blowup should fail a test, not hang the suite
 

@@ -3,29 +3,29 @@
   "about": "Every element of a document is sealed on its own: shredding part of it removes that part, and changes the whole.",
   "steps": [
     {"as": "doc 1", "xml": "<doc><para>first para</para><section><para>secret para</para><section><para>deep para</para></section></section><para>last para</para></doc>"},
-    {"as": "from first", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1/para[1]"]},
-    {"as": "from secret", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1/section/para"]},
-    {"as": "from last", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1/para[2]"]},
-    {"as": "from deep", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1/section/section/para"]},
-    {"as": "from doc 1", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1"]},
-    {"as": "from extract", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["from doc 1"]}
+    {"as": "extract 1", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1/para[1]"]},
+    {"as": "extract 2", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1/section/para"]},
+    {"as": "extract 3", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1/para[2]"]},
+    {"as": "extract 4", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1/section/section/para"]},
+    {"as": "extract 5", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1"]},
+    {"as": "extract 6", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["extract 5"]}
   ],
   "checks": [
     {"name": "shredding an inner node hides only its subtree, and kills what was derived from inside it or from the whole",
      "shred": "doc 1/section",
-     "gone": ["doc 1/section", "doc 1/section/para", "doc 1/section/section", "doc 1/section/section/para", "from secret", "from deep", "from doc 1", "from extract"],
-     "kept": ["doc 1", "doc 1/para[1]", "doc 1/para[2]", "from first", "from last"],
-     "stale": ["from secret", "from deep", "from doc 1", "from extract"]},
+     "gone": ["doc 1/section", "doc 1/section/para", "doc 1/section/section", "doc 1/section/section/para", "extract 2", "extract 4", "extract 5", "extract 6"],
+     "kept": ["doc 1", "doc 1/para[1]", "doc 1/para[2]", "extract 1", "extract 3"],
+     "stale": ["extract 2", "extract 4", "extract 5", "extract 6"]},
     {"name": "shredding the whole document kills what was derived from its deepest part", "shred": "doc 1",
-     "gone": ["doc 1", "doc 1/section/section/para", "from first", "from secret", "from last", "from deep", "from doc 1", "from extract"],
-     "stale": ["from first", "from secret", "from last", "from deep", "from doc 1", "from extract"]},
+     "gone": ["doc 1", "doc 1/section/section/para", "extract 1", "extract 2", "extract 3", "extract 4", "extract 5", "extract 6"],
+     "stale": ["extract 1", "extract 2", "extract 3", "extract 4", "extract 5", "extract 6"]},
     {"name": "shredding a deep descendant kills what was derived from the whole, transitively", "shred": "doc 1/section/section/para",
-     "gone": ["doc 1/section/section/para", "from deep", "from doc 1", "from extract"],
-     "kept": ["doc 1", "doc 1/section", "doc 1/section/section", "from first", "from secret", "from last"],
-     "stale": ["from deep", "from doc 1", "from extract"]},
+     "gone": ["doc 1/section/section/para", "extract 4", "extract 5", "extract 6"],
+     "kept": ["doc 1", "doc 1/section", "doc 1/section/section", "extract 1", "extract 2", "extract 3"],
+     "stale": ["extract 4", "extract 5", "extract 6"]},
     {"name": "shredding a sibling does not kill what was derived from another sibling", "shred": "doc 1/para[2]",
-     "gone": ["doc 1/para[2]", "from last", "from doc 1", "from extract"],
-     "kept": ["doc 1", "doc 1/para[1]", "from first", "from secret", "from deep"],
-     "stale": ["from last", "from doc 1", "from extract"]}
+     "gone": ["doc 1/para[2]", "extract 3", "extract 5", "extract 6"],
+     "kept": ["doc 1", "doc 1/para[1]", "extract 1", "extract 2", "extract 4"],
+     "stale": ["extract 3", "extract 5", "extract 6"]}
   ]
 }

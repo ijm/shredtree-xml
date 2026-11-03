@@ -4,11 +4,11 @@
   "steps": [
     {"as": "doc 1", "xml": "<doc><para>same text</para></doc>"},
     {"as": "doc 2", "xml": "<doc><para>same text</para></doc>"},
-    {"as": "from doc 1", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1"]},
-    {"as": "from doc 2", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 2"]}
+    {"as": "extract 1", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 1"]},
+    {"as": "extract 2", "transform": "extract", "xml": "<extract><para>extract 1</para><para>extract 2</para></extract>", "from": ["doc 2"]}
   ],
   "checks": [
     {"name": "shredding one copy kills only what was derived from it", "shred": "doc 1",
-     "gone": ["doc 1", "from doc 1"], "kept": ["doc 2", "from doc 2"], "stale": ["from doc 1"]}
+     "gone": ["doc 1", "extract 1"], "kept": ["doc 2", "extract 2"], "stale": ["extract 1"]}
   ]
 }

@@ -4,11 +4,7 @@
 
 import type { Engine } from "../engine/engine.ts";
 import { BY_ID, Loaded, everyAcl } from "../engine/scenario.ts";
-import type { Scenario, Step } from "../engine/scenario.ts";
-
-/** A step as the demo reads it: the tests don't use `transform`, so the shared loader
- * doesn't declare it. */
-type PipelineStep = Step & { transform?: string };
+import type { Scenario } from "../engine/scenario.ts";
 
 const NS = "https://ijm.github.io/shredtree-xml/shredtree.xsd";
 const XMLNS = "http://www.w3.org/2000/xmlns/";
@@ -54,7 +50,7 @@ export class Session {
     this.loaded = new Loaded(engine, scenario);
     const named = everyAcl(scenario);
     this.acls = named.length ? named : ["Alice"];
-    for (const step of scenario.steps as PipelineStep[]) {
+    for (const step of scenario.steps) {
       const id = this.loaded.ids.get(step.as)!;
       this.#labels.set(id, step.as);
       if (step.transform) this.#transforms.set(id, step.transform);

@@ -3,13 +3,13 @@
   "about": "When a source goes, each session is told about the derived nodes it can see, and nothing else.",
   "steps": [
     {"as": "doc 1", "xml": "<doc><para>source</para></doc>"},
-    {"as": "public", "transform": "copy", "xml": "<public>made from doc 1</public>", "from": ["doc 1"]},
-    {"as": "private", "transform": "copy", "xml": "<private>made from doc 1</private>", "from": ["doc 1"], "acl": "Alice"}
+    {"as": "copy 1", "transform": "copy", "xml": "<public>made from doc 1</public>", "from": ["doc 1"]},
+    {"as": "copy 2", "transform": "copy", "xml": "<private>made from doc 1</private>", "from": ["doc 1"], "acl": "Alice"}
   ],
   "checks": [
     {"name": "without Alice's key, only the public derivative is stale", "shred": "doc 1", "keys": [],
-     "gone": ["doc 1", "public"], "stale": ["public"]},
+     "gone": ["doc 1", "copy 1"], "stale": ["copy 1"]},
     {"name": "with Alice's key, both are", "shred": "doc 1", "keys": ["Alice"],
-     "gone": ["doc 1", "public", "private"], "stale": ["public", "private"]}
+     "gone": ["doc 1", "copy 1", "copy 2"], "stale": ["copy 1", "copy 2"]}
   ]
 }

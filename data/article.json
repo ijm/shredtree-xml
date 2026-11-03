@@ -3,26 +3,26 @@
   "about": "Each paragraph is translated on its own; the summary is made from the whole article, and a post is made from the summary and one translation.",
   "steps": [
     {"as": "doc 1", "xml": "<doc><title>Right to be forgotten</title><para>Alice asked for her data to be removed.</para><para>Her address appeared in the second paragraph.</para><para>The rest of the article is about the law.</para></doc>"},
-    {"as": "fr1", "transform": "translate-fr", "xml": "<translation lang='fr'>Alice a demandé la suppression de ses données.</translation>", "from": ["doc 1/para[1]"]},
-    {"as": "fr2", "transform": "translate-fr", "xml": "<translation lang='fr'>Son adresse figurait dans le deuxième paragraphe.</translation>", "from": ["doc 1/para[2]"]},
-    {"as": "fr3", "transform": "translate-fr", "xml": "<translation lang='fr'>Le reste de l'article porte sur la loi.</translation>", "from": ["doc 1/para[3]"]},
-    {"as": "summary", "transform": "summarise", "xml": "<summary>A request to be forgotten, and the law behind it.</summary>", "from": ["doc 1"]},
-    {"as": "post", "transform": "compose", "xml": "<post>Read the summary, and the French for the key paragraph.</post>", "from": ["summary", "fr2"]}
+    {"as": "translate-fr 1", "transform": "translate-fr", "xml": "<translation lang='fr'>Alice a demandé la suppression de ses données.</translation>", "from": ["doc 1/para[1]"]},
+    {"as": "translate-fr 2", "transform": "translate-fr", "xml": "<translation lang='fr'>Son adresse figurait dans le deuxième paragraphe.</translation>", "from": ["doc 1/para[2]"]},
+    {"as": "translate-fr 3", "transform": "translate-fr", "xml": "<translation lang='fr'>Le reste de l'article porte sur la loi.</translation>", "from": ["doc 1/para[3]"]},
+    {"as": "summarise", "transform": "summarise", "xml": "<summary>A request to be forgotten, and the law behind it.</summary>", "from": ["doc 1"]},
+    {"as": "compose", "transform": "compose", "xml": "<post>Read the summary, and the French for the key paragraph.</post>", "from": ["summarise", "translate-fr 2"]}
   ],
   "checks": [
     {"name": "shredding one paragraph kills its translation and everything made from the whole",
      "shred": "doc 1/para[2]",
-     "gone": ["doc 1/para[2]", "fr2", "summary", "post"],
-     "kept": ["doc 1", "doc 1/title", "doc 1/para[1]", "doc 1/para[3]", "fr1", "fr3"],
-     "stale": ["fr2", "summary", "post"]},
+     "gone": ["doc 1/para[2]", "translate-fr 2", "summarise", "compose"],
+     "kept": ["doc 1", "doc 1/title", "doc 1/para[1]", "doc 1/para[3]", "translate-fr 1", "translate-fr 3"],
+     "stale": ["translate-fr 2", "summarise", "compose"]},
     {"name": "shredding the document kills everything", "shred": "doc 1",
-     "gone": ["doc 1", "fr1", "fr2", "fr3", "summary", "post"],
-     "stale": ["fr1", "fr2", "fr3", "summary", "post"]},
-    {"name": "shredding a translation kills only what was made from it", "shred": "fr2",
-     "gone": ["fr2", "post"], "kept": ["doc 1", "fr1", "fr3", "summary"], "stale": ["post"]},
+     "gone": ["doc 1", "translate-fr 1", "translate-fr 2", "translate-fr 3", "summarise", "compose"],
+     "stale": ["translate-fr 1", "translate-fr 2", "translate-fr 3", "summarise", "compose"]},
+    {"name": "shredding a translation kills only what was made from it", "shred": "translate-fr 2",
+     "gone": ["translate-fr 2", "compose"], "kept": ["doc 1", "translate-fr 1", "translate-fr 3", "summarise"], "stale": ["compose"]},
     {"name": "adding a paragraph kills what was made from the whole document",
      "insert": {"into": "doc 1", "xml": "<para>A correction was added later.</para>"},
-     "gone": ["summary", "post"], "kept": ["doc 1", "doc 1/para[2]", "fr1", "fr2", "fr3"],
-     "stale": ["summary", "post"]}
+     "gone": ["summarise", "compose"], "kept": ["doc 1", "doc 1/para[2]", "translate-fr 1", "translate-fr 2", "translate-fr 3"],
+     "stale": ["summarise", "compose"]}
   ]
 }

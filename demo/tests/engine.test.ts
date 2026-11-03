@@ -4,7 +4,7 @@ import { before, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { loadPyodide } from "pyodide";
 
-import { Engine, StoreError } from "../src/engine/engine.ts";
+import { Engine, StoreError, TransformError } from "../src/engine/engine.ts";
 import type { Manifest } from "../src/engine/engine.ts";
 
 const vendor = fileURLToPath(new URL("../public/vendor/pyodide/", import.meta.url));
@@ -13,7 +13,8 @@ let engine: Engine;
 before(async () => {
   const manifest: Manifest = JSON.parse(readFileSync(vendor + "manifest.json", "utf8"));
   const bridge = readFileSync(new URL("../src/engine/bridge.py", import.meta.url), "utf8");
-  engine = await Engine.start(loadPyodide, vendor, manifest, bridge);
+  const transform = readFileSync(new URL("../../python/tests/transform.py", import.meta.url), "utf8");
+  engine = await Engine.start(loadPyodide, vendor, manifest, bridge, { transform });
 });
 
 beforeEach(() => engine.reset());
@@ -32,4 +33,12 @@ test("shred counts removed nodes and cascades", () => {
 test("store errors come back as StoreError", () => {
   assert.throws(() => engine.run({ op: "insert", target: "//missing", xml: "<x/>" }),
                 (e) => e instanceof StoreError && e.kind === "NotFound");
+});
+
+test("transforms run on what a query returns, and refuse unknown names", () => {
+  engine.run({ op: "insert", target: "/root", xml: "<doc><para>One.</para><para>Two</para></doc>" });
+  const sources = engine.run({ op: "query", xpath: "/root/doc" }) as string[];
+  assert.equal(engine.transform("uppercase", sources), "<uppercase><para>ONE.</para><para>TWO</para></uppercase>");
+  assert.throws(() => engine.transform("shout", sources),
+                (e) => e instanceof TransformError && e.kind === "ValueError");
 });

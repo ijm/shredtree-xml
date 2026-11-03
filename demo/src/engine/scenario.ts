@@ -1,11 +1,13 @@
 // Scenarios from data/ (see data/README.md), loaded through the engine the way a client
-// would use the store: one insert per step, inside a top-level <scenario/> element.
+// would use the store: one insert per step, inside a top-level <scenario/> element. A
+// step without xml is made by its transform from its sources, as the store returns them.
 
 import type { Engine } from "./engine.ts";
 
 export interface Step {
   as: string;
-  xml: string;
+  xml?: string;
+  transform?: string;
   into?: string;
   from?: string[];
   acl?: string;
@@ -19,6 +21,7 @@ export interface Check {
   gone?: string[];
   kept?: string[];
   stale?: string[];
+  text?: Record<string, string>;
 }
 
 export interface Scenario {
@@ -57,7 +60,8 @@ export class Loaded {
     for (const step of scenario.steps) {
       const into = step.into === undefined ? this.container : this.resolve(step.into);
       const refs = (step.from ?? []).map((r) => this.resolve(r));
-      this.ids.set(step.as, this.#insert(BY_ID, step.xml, refs, { i: into }, step.acl));
+      const xml = step.xml ?? this.made(step.transform!, refs);
+      this.ids.set(step.as, this.#insert(BY_ID, xml, refs, { i: into }, step.acl));
     }
   }
 
@@ -72,6 +76,20 @@ export class Loaded {
     const found = this.engine.run({ op: "query", xpath, at: id }, this.keys);
     if (!Array.isArray(found) || found.length !== 1) throw new Error(`${ref} selects ${JSON.stringify(found)}`);
     return found[0] as string;
+  }
+
+  /** What the transform `name` makes from the nodes `refs`, each as a query returns it. */
+  made(name: string, refs: string[]): string {
+    const sources = refs.map((r) => {
+      const [found] = this.engine.run({ op: "query", xpath: BY_ID, vars: { i: r } }, this.keys) as string[];
+      return found;
+    });
+    return this.engine.transform(name, sources);
+  }
+
+  /** The node's text nodes, in document order, joined by |. */
+  text(id: string, keys: string[] = this.keys): string {
+    return this.engine.run({ op: "query", xpath: `string-join(${BY_ID}//text(), '|')`, vars: { i: id } }, keys) as string;
   }
 
   /** Whether the node can be seen in queries now, through the keyring `keys`. */

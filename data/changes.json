@@ -3,17 +3,17 @@
   "about": "Shredding a child of a source, or adding one, changes the source: what was derived from the whole goes, what was derived from an unchanged part stays.",
   "steps": [
     {"as": "doc 1", "xml": "<doc><para>public</para><para>shred me</para></doc>"},
-    {"as": "summary 1", "transform": "summarise", "xml": "<summary>made from doc 1</summary>", "from": ["doc 1"]},
-    {"as": "from para 1", "transform": "copy", "xml": "<copy>made from the first para</copy>", "from": ["doc 1/para[1]"]},
+    {"as": "summarise 1", "transform": "summarise", "xml": "<summary>made from doc 1</summary>", "from": ["doc 1"]},
+    {"as": "copy", "transform": "copy", "xml": "<copy>made from the first para</copy>", "from": ["doc 1/para[1]"]},
     {"as": "doc 2", "xml": "<doc><para>unrelated</para></doc>"},
-    {"as": "summary 2", "transform": "summarise", "xml": "<summary>made from doc 2</summary>", "from": ["doc 2"]}
+    {"as": "summarise 2", "transform": "summarise", "xml": "<summary>made from doc 2</summary>", "from": ["doc 2"]}
   ],
   "checks": [
     {"name": "shredding a child kills what was derived from its parent", "shred": "doc 1/para[2]",
-     "gone": ["doc 1/para[2]", "summary 1"], "kept": ["doc 1", "doc 1/para[1]", "from para 1", "doc 2", "summary 2"],
-     "stale": ["summary 1"]},
+     "gone": ["doc 1/para[2]", "summarise 1"], "kept": ["doc 1", "doc 1/para[1]", "copy", "doc 2", "summarise 2"],
+     "stale": ["summarise 1"]},
     {"name": "inserting into a node kills what was derived from it", "insert": {"into": "doc 1", "xml": "<para>new</para>"},
-     "gone": ["summary 1"], "kept": ["doc 1", "doc 1/para[1]", "doc 1/para[2]", "from para 1", "doc 2", "summary 2"],
-     "stale": ["summary 1"]}
+     "gone": ["summarise 1"], "kept": ["doc 1", "doc 1/para[1]", "doc 1/para[2]", "copy", "doc 2", "summarise 2"],
+     "stale": ["summarise 1"]}
   ]
 }

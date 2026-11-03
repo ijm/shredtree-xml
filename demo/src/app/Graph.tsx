@@ -52,9 +52,12 @@ function Head({ item, info }: Data) {
   return (
     <div className="head">
       <span className="what">
-        {info.transform !== undefined && <span className="transform">{info.transform} →</span>}
+        {info.transform !== undefined && (
+          // the rebuild control-to-be: disabled while the node's result is in the store
+          <><button type="button" className="nodrag transform" disabled
+                    title={`made by ${info.transform}`}>{info.transform}</button>→</>
+        )}
         <span className="tag"><span className="angle">&lt;</span>{item.tag}<span className="angle">&gt;</span></span>
-        {info.label !== undefined && info.label !== item.tag && <span className="label">{info.label}</span>}
         {item.attrs.map(([k, v]) => <span key={k} className="attr">{k}={v}</span>)}
         {info.acl !== undefined && <span className="acl"><span className="icon">{KEY}</span>{info.acl}</span>}
       </span>
@@ -76,6 +79,12 @@ function Head({ item, info }: Data) {
       <span className="id">{item.id.slice(0, 6)}</span>
     </div>
   );
+}
+
+/** A step's name, on a tab above the node's top-left corner: drawn as part of the node,
+ * so it takes every state the border does. */
+function Tab({ info }: Data) {
+  return info.label === undefined ? null : <div className="tab">{info.label}</div>;
 }
 
 function state(id: string, h: Highlight): string | false {
@@ -101,6 +110,7 @@ function LeafNode({ data }: NodeProps<FlowNode>) {
     <div className={classes(data, act.highlight, "leaf")} style={shape(data)}
          onMouseEnter={() => act.hover(data.item.id)} onMouseLeave={() => act.hover(null)}>
       <Handle type="target" position={Position.Left} />
+      <Tab {...data} />
       <Head {...data} />
       {data.item.text && <div className="body">{data.item.text}</div>}
       <Handle type="source" position={Position.Right} />
@@ -114,6 +124,7 @@ function BoxNode({ data }: NodeProps<FlowNode>) {
     <div className={classes(data, act.highlight, "box")} style={shape(data)}
          onMouseEnter={() => act.hover(data.item.id)} onMouseLeave={() => act.hover(null)}>
       <Handle type="target" position={Position.Left} />
+      <Tab {...data} />
       <Head {...data} />
       <Handle type="source" position={Position.Right} />
     </div>
@@ -166,7 +177,8 @@ export function Graph({ view, session, actions }: { view: View; session: Session
         const { id } = (el as HTMLElement).dataset;
         sizes.set(id!, { width: (el as HTMLElement).offsetWidth, height: (el as HTMLElement).offsetHeight });
       }
-      const boxes = await layout(view, sizes);
+      const named = new Set(view.order.filter((id) => session.info(view, id).label !== undefined));
+      const boxes = await layout(view, sizes, named);
       if (!live) return;
       setNodes(view.order.map((id): FlowNode => {
         const item = view.items.get(id)!;

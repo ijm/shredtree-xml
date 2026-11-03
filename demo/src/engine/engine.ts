@@ -30,12 +30,28 @@ export class StoreError extends Error {
   }
 }
 
+/** A transform (python/tests/transform.py) refused its input; `kind` is the Python
+ * exception's class name. */
+export class TransformError extends Error {
+  kind: string;
+
+  constructor(kind: string, message: string) {
+    super(message);
+    this.name = "TransformError";
+    this.kind = kind;
+  }
+}
+
 interface Bridge {
   call(endpoint: string, acls: string, body: string): string;
+  applyTransform(name: string, sources: string): string;
   reset(): void;
 }
 
-/** A shredtree.rest reply. */
+/** Where `modules` given to Engine.start are put, inside Pyodide's file system. */
+const MODULES = "/shredtree-modules";
+
+/** A shredtree.rest reply, or a transform's, which has the same shape. */
 type Reply = { result: unknown } | { error: string; message: string };
 
 export class Engine {
@@ -46,9 +62,10 @@ export class Engine {
   }
 
   /** `indexURL` is the directory holding the vendored files, ending in "/" (a path
-   * under Node). */
+   * under Node). `modules` are extra Python modules, by name, as source text, importable
+   * by the bridge: "transform" makes transform() work. */
   static async start(load: typeof loadPyodide, indexURL: string, manifest: Manifest,
-                     bridgeSource: string): Promise<Engine> {
+                     bridgeSource: string, modules: Record<string, string> = {}): Promise<Engine> {
     const py: PyodideAPI = await load({ indexURL, packageCacheDir: indexURL });
     // loadPackage reports failures through errorCallback instead of rejecting, and
     // resolves a bare wheel name against the working directory under Node
@@ -56,9 +73,12 @@ export class Engine {
     await py.loadPackage([...manifest.packages, ...manifest.wheels.map((w) => indexURL + w)],
                          { messageCallback: () => {}, errorCallback: (m) => errors.push(m) });
     if (errors.length) throw new Error(`loading Python packages failed:\n${errors.join("\n")}`);
+    py.FS.mkdirTree(MODULES);
+    for (const [name, source] of Object.entries(modules)) py.FS.writeFile(`${MODULES}/${name}.py`, source);
+    py.runPython(`import sys; sys.path.insert(0, ${JSON.stringify(MODULES)})`);
     const ns = py.globals.get("dict")();
     py.runPython(bridgeSource, { globals: ns });
-    return new Engine({ call: ns.get("call"), reset: ns.get("reset") });
+    return new Engine({ call: ns.get("call"), applyTransform: ns.get("apply_transform"), reset: ns.get("reset") });
   }
 
   /** Run `ops` as one transaction; a failure discards all of them and throws StoreError. */
@@ -71,6 +91,14 @@ export class Engine {
   /** Run one op as its own transaction. */
   run(op: Op, acls: string[] = []): unknown {
     return this.batch([op], acls)[0];
+  }
+
+  /** The transform `name` applied to `sources`, serialized elements as queries return
+   * them; the result is one serialized element, ready to insert. */
+  transform(name: string, sources: string[]): string {
+    const reply = JSON.parse(this.#bridge.applyTransform(name, JSON.stringify(sources))) as Reply;
+    if ("error" in reply) throw new TransformError(reply.error, reply.message);
+    return reply.result as string;
   }
 
   /** Start again with an empty store. */
