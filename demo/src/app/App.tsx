@@ -11,7 +11,7 @@ import { Session } from "./model.ts";
 export function App() {
   const [engine, setEngine] = useState<Engine | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pick, setPick] = useState(() => Math.max(0, SCENARIOS.findIndex((s) => s.name === "article")));
+  const [pick, setPick] = useState(0);  // the first demo
   const [loads, reload] = useReducer((n: number) => n + 1, 0);
   const [session, setSession] = useState<Session | null>(null);
   const [keys, setKeys] = useState<string[]>([]);
@@ -27,7 +27,7 @@ export function App() {
   useEffect(() => {
     if (engine === null) return;
     try {
-      const s = new Session(engine, SCENARIOS[pick].scenario);
+      const s = new Session(engine, SCENARIOS[pick].scenario, SCENARIOS[pick].byHand);
       setSession(s);
       setKeys(s.acls);
       setError(null);
@@ -75,6 +75,7 @@ export function App() {
     preview: (id, returns = false) => setPreview(id === null ? null : { id, returns }),
     shred: (id) => act(() => session!.shred(id, keys)),
     setKeyed: (id, keyed) => act(() => session!.setKeyed(view!, id, keyed, keys)),
+    build: (name) => act(() => session!.build(name, keys)),
   };
 
   const { scenario } = SCENARIOS[pick];
@@ -85,7 +86,11 @@ export function App() {
         <fieldset className="group">
           <legend>scenario</legend>
           <select value={pick} onChange={(e) => setPick(Number(e.target.value))}>
-            {SCENARIOS.map((s, i) => <option key={s.name} value={i}>{s.scenario.title}</option>)}
+            {[...new Set(SCENARIOS.map((s) => s.group))].map((group) => (
+              <optgroup key={group} label={group}>
+                {SCENARIOS.map((s, i) => s.group === group && <option key={s.name} value={i}>{s.title}</option>)}
+              </optgroup>
+            ))}
           </select>
           <button type="button" className="icon" title="load the scenario again" onClick={reload}>↺</button>
         </fieldset>

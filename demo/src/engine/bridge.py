@@ -20,11 +20,12 @@ def call(endpoint: str, acls: str, body: str) -> str:
     return reply
 
 
-def apply_transform(name: str, sources: str) -> str:
-    """`sources` is a JSON list of serialized elements; the reply is JSON like call()'s."""
+def apply_transform(name: str, sources: str, args: str) -> str:
+    """`sources` is a JSON list of serialized elements and `args` a JSON list; the reply
+    is JSON like call()'s."""
     from transform import apply  # imported here: only some engines are given the module
 
     try:
-        return json.dumps({"result": apply(name, json.loads(sources))})
+        return json.dumps({"result": apply(name, json.loads(sources), json.loads(args))})
     except ValueError as e:
         return json.dumps({"error": type(e).__name__, "message": str(e)})

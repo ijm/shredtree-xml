@@ -8,7 +8,7 @@ import type { Edge, Node, NodeProps } from "@xyflow/react";
 import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, Ref } from "react";
 
-import { KEY, LOCK, TRASH, UNLOCK } from "./icons.ts";
+import { KEY, LOCK, TOOLS, TRASH, UNLOCK } from "./icons.ts";
 import { layout } from "./layout.ts";
 import { ancestors } from "./model.ts";
 import type { Info, Item, Session, View } from "./model.ts";
@@ -37,6 +37,7 @@ export interface Actions {
   preview(id: string | null, returns?: boolean): void;
   shred(id: string): void;
   setKeyed(id: string, keyed: boolean): void;
+  build(name: string): void;
 }
 
 export const QUIET: Highlight = { focus: null, lit: new Set(), context: new Set(), doomed: new Set() };
@@ -55,15 +56,17 @@ function Head({ item, info }: Data) {
     <div className="head">
       <span className="what">
         {info.transform !== undefined && (
-          // the rebuild control-to-be: disabled while the node's result is in the store
-          <><button type="button" className="nodrag transform" disabled
-                    title={`made by ${info.transform}`}>{info.transform}</button>→</>
+          // builds the step's node: only for a placeholder, once what it needs is there
+          <><button type="button" className="nodrag transform" disabled={!info.ready}
+                    title={item.missing ? `build with ${info.transform}` : `made by ${info.transform}`}
+                    onClick={() => act.build(info.label!)}><span className="icon">{TOOLS}</span>{info.transform}</button>→</>
         )}
-        <span className="tag"><span className="angle">&lt;</span>{item.tag}<span className="angle">&gt;</span></span>
+        {!item.missing
+          && <span className="tag"><span className="angle">&lt;</span>{item.tag}<span className="angle">&gt;</span></span>}
         {item.attrs.map(([k, v]) => <span key={k} className="attr">{k}={v}</span>)}
         {info.acl !== undefined && <span className="acl"><span className="icon">{KEY}</span>{info.acl}</span>}
       </span>
-      <span className="controls">
+      {!item.missing && <span className="controls">
         {leaf && (
           <button
             type="button" className="nodrag icon" disabled={info.inherited}
@@ -78,8 +81,8 @@ function Head({ item, info }: Data) {
           onMouseEnter={() => act.preview(item.id)} onMouseLeave={() => act.preview(null)}
           onClick={() => act.shred(item.id)}
         >{TRASH}</button>
-      </span>
-      <span className="id">{item.id.slice(0, 6)}</span>
+      </span>}
+      {!item.missing && <span className="id">{item.id.slice(0, 6)}</span>}
     </div>
   );
 }
@@ -99,7 +102,7 @@ function state(id: string, h: Highlight): string | false {
 
 function classes(data: Data, h: Highlight, kind: string): string {
   return ["st-node", kind, data.info.derived ? "is-derived" : "is-source",
-          data.info.acl !== undefined && "keyed", state(data.item.id, h)]
+          data.info.acl !== undefined && "keyed", data.item.missing && "missing", state(data.item.id, h)]
     .filter(Boolean).join(" ");
 }
 

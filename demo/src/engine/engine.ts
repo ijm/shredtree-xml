@@ -44,7 +44,7 @@ export class TransformError extends Error {
 
 interface Bridge {
   call(endpoint: string, acls: string, body: string): string;
-  applyTransform(name: string, sources: string): string;
+  applyTransform(name: string, sources: string, args: string): string;
   reset(): void;
 }
 
@@ -94,9 +94,9 @@ export class Engine {
   }
 
   /** The transform `name` applied to `sources`, serialized elements as queries return
-   * them; the result is one serialized element, ready to insert. */
-  transform(name: string, sources: string[]): string {
-    const reply = JSON.parse(this.#bridge.applyTransform(name, JSON.stringify(sources))) as Reply;
+   * them, with the step's `args`; the result is one serialized element, ready to insert. */
+  transform(name: string, sources: string[], args: unknown[] = []): string {
+    const reply = JSON.parse(this.#bridge.applyTransform(name, JSON.stringify(sources), JSON.stringify(args))) as Reply;
     if ("error" in reply) throw new TransformError(reply.error, reply.message);
     return reply.result as string;
   }

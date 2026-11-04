@@ -29,7 +29,9 @@ nodes.
 
 A step's content is its `xml`; a step without `xml` is made by running its `transform`
 (one of those in `python/tests/transform.py`) on its `from` sources, each as the store
-returns it when queried, in `from` order. A step with `xml` names its transform only as
+returns it when queried, in `from` order, and on its `args`, a list, if it has any.
+`message` ignores what its sources say and outputs `args[0]`; its sources still make it
+a derived node, which dies with them and can be built again. A step with `xml` names its transform only as
 a description (`"summarise"`), so hand-written results and computed ones can sit side by
 side.
 

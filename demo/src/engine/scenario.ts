@@ -8,6 +8,7 @@ export interface Step {
   as: string;
   xml?: string;
   transform?: string;
+  args?: unknown[];
   into?: string;
   from?: string[];
   acl?: string;
@@ -44,47 +45,60 @@ export function everyAcl(scenario: Scenario): string[] {
   return [...named].sort();
 }
 
+/** Whether a step is made by its transform, rather than given as xml. Only these can be
+ * built again: a given node, once shredded, is gone. */
+export function computed(step: Step): boolean {
+  return step.xml === undefined;
+}
+
 /** A scenario inserted into the engine's store, which is emptied first, with its labels
- * mapped to st:ids. */
+ * mapped to st:ids. With `transforms` false, computed steps are left for build(). */
 export class Loaded {
   readonly engine: Engine;
   readonly keys: string[];
   readonly container: string;
   readonly ids = new Map<string, string>();
 
-  constructor(engine: Engine, scenario: Scenario) {
+  constructor(engine: Engine, scenario: Scenario, { transforms = true } = {}) {
     engine.reset();
     this.engine = engine;
     this.keys = everyAcl(scenario);
     this.container = this.#insert("/root", "<scenario/>", []);
-    for (const step of scenario.steps) {
-      const into = step.into === undefined ? this.container : this.resolve(step.into);
-      const refs = (step.from ?? []).map((r) => this.resolve(r));
-      const xml = step.xml ?? this.made(step.transform!, refs);
-      this.ids.set(step.as, this.#insert(BY_ID, xml, refs, { i: into }, step.acl));
-    }
+    for (const step of scenario.steps) if (transforms || !computed(step)) this.build(step);
+  }
+
+  /** Insert the step, its refs resolved now, through the keyring `keys`; its label then
+   * names the new node. */
+  build(step: Step, keys: string[] = this.keys): string {
+    const into = step.into === undefined ? this.container : this.resolve(step.into, keys);
+    const refs = (step.from ?? []).map((r) => this.resolve(r, keys));
+    const xml = step.xml ?? this.made(step.transform!, refs, keys, step.args);
+    const id = this.#insert(BY_ID, xml, refs, { i: into }, step.acl, keys);
+    this.ids.set(step.as, id);
+    return id;
   }
 
   /** The st:id a ref names: a label, or a label and an XPath relative to it. */
-  resolve(ref: string): string {
+  resolve(ref: string, keys: string[] = this.keys): string {
     const slash = ref.indexOf("/");
     const label = slash < 0 ? ref : ref.slice(0, slash);
     const id = this.ids.get(label);
     if (id === undefined) throw new Error(`unknown label in ref ${ref}`);
     if (slash < 0) return id;
     const xpath = `/*/${ref.slice(slash + 1)}/string(@st:id)`;
-    const found = this.engine.run({ op: "query", xpath, at: id }, this.keys);
+    const found = this.engine.run({ op: "query", xpath, at: id }, keys);
     if (!Array.isArray(found) || found.length !== 1) throw new Error(`${ref} selects ${JSON.stringify(found)}`);
     return found[0] as string;
   }
 
-  /** What the transform `name` makes from the nodes `refs`, each as a query returns it. */
-  made(name: string, refs: string[]): string {
+  /** What the transform `name` makes from the nodes `refs`, each as a query returns it,
+   * and `args`. */
+  made(name: string, refs: string[], keys: string[] = this.keys, args: unknown[] = []): string {
     const sources = refs.map((r) => {
-      const [found] = this.engine.run({ op: "query", xpath: BY_ID, vars: { i: r } }, this.keys) as string[];
+      const [found] = this.engine.run({ op: "query", xpath: BY_ID, vars: { i: r } }, keys) as string[];
       return found;
     });
-    return this.engine.transform(name, sources);
+    return this.engine.transform(name, sources, args);
   }
 
   /** The node's text nodes, in document order, joined by |. */
@@ -114,8 +128,8 @@ export class Loaded {
   }
 
   #insert(target: string, xml: string, refs: string[], vars: Record<string, string> = {},
-          acl?: string): string {
-    const result = this.engine.run({ op: "insert", target, xml, refs, vars, acl }, this.keys);
+          acl?: string, keys: string[] = this.keys): string {
+    const result = this.engine.run({ op: "insert", target, xml, refs, vars, acl }, keys);
     return (result as { id: string }).id;
   }
 }

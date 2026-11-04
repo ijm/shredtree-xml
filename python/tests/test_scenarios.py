@@ -28,13 +28,13 @@ class Loaded:
         for step in scenario["steps"]:
             into = self.resolve(step["into"]) if "into" in step else self.container
             refs = [self.resolve(r) for r in step.get("from", [])]
-            xml = step["xml"] if "xml" in step else self.made(step["transform"], refs)
+            xml = step["xml"] if "xml" in step else self.made(step["transform"], refs, step.get("args", []))
             self.ids[step["as"]] = self.svc.insert(self.keys, BY_ID, xml, refs,
                                                    {"i": into}, secret(step.get("acl"))).id
 
-    def made(self, transform: str, refs: list[str]) -> str:
+    def made(self, transform: str, refs: list[str], args: list[Any]) -> str:
         sources: list[str] = [self.svc.query(self.keys, BY_ID, {"i": r})[0] for r in refs]
-        return apply(transform, sources)
+        return apply(transform, sources, args)
 
     def resolve(self, ref: str) -> str:
         """The st:id a ref names: a label, or a label and an XPath relative to it."""

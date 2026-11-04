@@ -44,6 +44,8 @@
   --header-height: 28px;  /* HEADER in layout.ts, which places a box's children below it */
   --tab-height: 16px;     /* TAB in layout.ts, which leaves room for it */
   --t-in: 0.25s;
+  --t-flash: 1s;           /* a button's glow when it appears or becomes clickable */
+  --t-flash-again: 0.46s;  /* and when a hover reveals it again: quicker, it happens often */
   --t-out: 0.15s;
 
   color-scheme: dark;
@@ -67,9 +69,25 @@ button, select {
 button:hover:not(:disabled), select:hover { border-color: var(--blue); color: var(--blue); }
 button:disabled { cursor: default; opacity: 0.4; }
 
+/* A clickable button glows once when it appears or becomes clickable, to say "click me"
+   without staying busy: the animation runs once and stops. Applied only to enabled
+   buttons, so going from disabled to enabled starts it again. pulse-again is the same
+   glow under another name: an animation only restarts when its name changes. */
+@keyframes pulse {
+  0%, 100% { filter: none; }
+  50% { filter: drop-shadow(0 0 2px var(--pulse)) drop-shadow(0 0 7px var(--pulse)); }
+}
+@keyframes pulse-again {
+  0%, 100% { filter: none; }
+  50% { filter: drop-shadow(0 0 2px var(--pulse)) drop-shadow(0 0 7px var(--pulse)); }
+}
+button { --pulse: var(--blue); }
+button:not(:disabled) { animation: pulse var(--t-flash) ease-in-out; }
+@media (prefers-reduced-motion: reduce) { button:not(:disabled), .controls { animation: none !important; } }
+
 /* icons (glyphs from the Nerd Font) at about 1.7 times the text around them */
 .icon { font-size: 1.7em; line-height: 1; }
-select option { background: var(--bg); }
+select option, select optgroup { background: var(--bg); }
 
 /* -- frame ----------------------------------------------------------------------- */
 .app { display: flex; flex-direction: column; height: 100%; }
@@ -127,12 +145,18 @@ select option { background: var(--bg); }
 .key .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .key .state { font: 300 10px "Mono", monospace; text-transform: uppercase; letter-spacing: 0.1em; }
 .key.present {
+  --pulse: var(--green);
   color: var(--bg);
   background: var(--green);
   border-color: var(--green);
   box-shadow: 0 0 10px 1px rgba(69, 214, 160, 0.35);
 }
-.key.present:hover:not(:disabled) { color: var(--bg); border-color: var(--halo); }
+/* hovered, it brightens in its own green, as other buttons brighten in theirs */
+.key.present:hover:not(:disabled) {
+  color: var(--bg);
+  background: oklch(0.88 0.13 164);
+  border-color: oklch(0.88 0.13 164);
+}
 
 .error {
   padding: 4px 12px;
@@ -175,6 +199,8 @@ select option { background: var(--bg); }
   --ring: oklch(var(--lightness) 0.15 var(--hue) / calc(var(--boost) / 0.22));
   --glow: oklch(calc(var(--lightness) - 0.07) 0.15 var(--hue) / calc(var(--boost) * 2));
   --name-colour: oklch(calc(0.72 + var(--boost)) 0.06 var(--hue));
+  --alarm: oklch(0.78 0.15 calc(var(--hue) + 180));         /* the node's hue turned 180 */
+  --alarm-bright: oklch(0.88 0.15 calc(var(--hue) + 180));
   --dash-width: calc(1px + var(--boost) * 4.545px);  /* a keyed border: 1px, 2px when lit */
   border: 1px solid var(--line-colour);
   box-shadow: 0 0 0 1px var(--ring), 0 0 14px 2px var(--glow);
@@ -273,6 +299,9 @@ select option { background: var(--bg); }
 .head .tag .angle { color: var(--dim); font-weight: 300; }
 /* the transform, as a button that is switched off: drawn so it reads as one, not hidden */
 .head button.transform {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 0 5px;
   line-height: 14px;
   color: var(--accent);
@@ -280,11 +309,25 @@ select option { background: var(--bg); }
   background: oklch(0.3 0.04 var(--hue-green) / 0.35);
 }
 .head button.transform:disabled { opacity: 0.6; }
+/* a step that can be built now: the alarm colour, so it stands out as something to do */
+.head button.transform:not(:disabled) { color: var(--bg); background: var(--alarm); border-color: var(--alarm); --pulse: var(--alarm); }
+.head button.transform:not(:disabled):hover { color: var(--bg); background: var(--alarm-bright); border-color: var(--alarm-bright); }
+
+/* a computed step not in the store: its outline and name, empty, to be built */
+.st-node.missing { --fill: transparent; }
+.st-node.missing > .head { color: var(--dim); }
 .head .acl { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); }
 
-.controls { display: flex; gap: 3px; opacity: 0; }
+/* hidden until hovered, but shown for a moment when the node appears, glowing with
+   every other button, so you can see they are there; they glow again each time a hover
+   reveals them */
+@keyframes show { 50% { opacity: 1; } }
+.controls { display: flex; gap: 3px; opacity: 0; animation: show var(--t-flash) ease-in-out; }
 .st-node:hover .controls, .st-node:focus-within .controls { opacity: 1; }
 .controls button { padding: 1px 4px; border-color: transparent; }
+.st-node:hover .controls button:not(:disabled), .st-node:focus-within .controls button:not(:disabled) {
+  animation: pulse-again var(--t-flash-again) ease-in-out;
+}
 .controls button:hover:not(:disabled) { border-color: var(--blue); }
 
 .body {
@@ -315,3 +358,4 @@ select option { background: var(--bg); }
 
 /* off-screen copies of the leaves, for measuring */
 .measure { position: absolute; visibility: hidden; left: -10000px; top: 0; }
+.measure button, .measure .controls { animation: none; }  /* nobody sees these copies */

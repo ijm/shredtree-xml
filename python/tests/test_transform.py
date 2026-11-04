@@ -25,7 +25,7 @@ DOC = stored("<doc><para>Son adresse.</para><para>Et données!</para></doc>")
 
 def test_the_table_holds_the_six_transforms() -> None:
     assert sorted(TRANSFORMS) == ["concatenate", "count", "disemvowel", "interleave",
-                                  "lowercase", "uppercase"]
+                                  "lowercase", "message", "uppercase"]
 
 
 def test_unknown_names_and_no_sources_are_errors() -> None:
@@ -76,6 +76,18 @@ def test_count_letters_words_and_sentences() -> None:
     assert apply("count", [DOC]) == "<count>19 letters, 4 words, 2 sentences</count>"
     assert apply("count", [stored("<para>L'article</para>")]) == (
         "<count>8 letters, 1 word, 1 sentence</count>")
+
+
+def test_message_outputs_its_text_whatever_the_sources_and_needs_one() -> None:
+    assert apply("message", [DOC], ["Hello, Bob."]) == "<message>Hello, Bob.</message>"
+    with pytest.raises(ValueError, match="needs its text as args"):
+        apply("message", [DOC])
+    with pytest.raises(ValueError, match="needs its text as args"):
+        apply("message", [DOC], [3])
+
+
+def test_transforms_that_take_no_args_ignore_them() -> None:
+    assert apply("uppercase", [DOC], ["ignored"]) == apply("uppercase", [DOC])
 
 
 def test_from_a_query_into_the_store_and_out_again_when_a_source_goes() -> None:

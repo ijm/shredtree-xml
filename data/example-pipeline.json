@@ -1,5 +1,5 @@
 {
-  "title": "Transforms made by code",
+  "title": "Example Pipeline",
   "about": "Each derived node is made by a transform from what the store holds now; what dies when a source goes, or changes, is exactly what was made from it.",
   "steps": [
     {"as": "doc 1", "xml": "<doc><para>The quick brown fox.</para><para>It jumps over the lazy dog!</para></doc>"},

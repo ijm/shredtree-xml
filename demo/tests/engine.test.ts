@@ -41,4 +41,5 @@ test("transforms run on what a query returns, and refuse unknown names", () => {
   assert.equal(engine.transform("uppercase", sources), "<uppercase><para>ONE.</para><para>TWO</para></uppercase>");
   assert.throws(() => engine.transform("shout", sources),
                 (e) => e instanceof TransformError && e.kind === "ValueError");
+  assert.equal(engine.transform("message", sources, ["Hello, Bob."]), "<message>Hello, Bob.</message>");
 });

@@ -6,18 +6,19 @@
     {"as": "private", "into": "doc 1", "xml": "<section>private</section>", "acl": "Alice"},
     {"as": "deeper", "into": "private", "xml": "<para>very private</para>", "acl": "Bob"},
     {"as": "note", "into": "doc 1", "xml": "<para>a private note</para>", "acl": "Alice"},
-    {"as": "summarise", "transform": "summarise", "xml": "<summary>public, but made from the private note</summary>", "from": ["note"]}
+    {"as": "message", "transform": "message", "args": ["public, but made from the private note"], "from": ["note"]}
   ],
   "checks": [
     {"name": "without a key only the public part shows", "keys": [],
-     "kept": ["doc 1", "doc 1/para[1]"], "gone": ["private", "deeper", "note", "summarise"]},
+     "kept": ["doc 1", "doc 1/para[1]"], "gone": ["private", "deeper", "note", "message"]},
     {"name": "Alice's key shows the private parts and what was made from them", "keys": ["Alice"],
-     "kept": ["doc 1", "private", "note", "summarise"], "gone": ["deeper"]},
+     "kept": ["doc 1", "private", "note", "message"], "gone": ["deeper"]},
     {"name": "nested keys are both needed: Bob's alone shows nothing private", "keys": ["Bob"],
-     "kept": ["doc 1"], "gone": ["private", "deeper", "note", "summarise"]},
+     "kept": ["doc 1"], "gone": ["private", "deeper", "note", "message"]},
     {"name": "Alice's and Bob's keys show everything", "keys": ["Alice", "Bob"],
-     "kept": ["doc 1", "private", "deeper", "note", "summarise"]},
+     "kept": ["doc 1", "private", "deeper", "note", "message"],
+     "text": {"message": "public, but made from the private note"}},
     {"name": "shredding the private note takes what was made from it", "shred": "note",
-     "kept": ["doc 1", "private", "deeper"], "gone": ["note", "summarise"], "stale": ["summarise"]}
+     "kept": ["doc 1", "private", "deeper"], "gone": ["note", "message"], "stale": ["message"]}
   ]
 }

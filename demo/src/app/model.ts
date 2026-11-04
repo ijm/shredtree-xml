@@ -1,15 +1,17 @@
 // What the canvas shows: the scenario's derivations (which node was made from which),
 // laid over whatever the store opens for the current keyring. The store only answers
 // for the elements that open, so anything shredded, dead or locked simply isn't there.
+// A computed step whose node isn't there is shown as a placeholder, built on request
+// once what it needs is there.
 
 import type { Engine } from "../engine/engine.ts";
-import { BY_ID, Loaded, everyAcl } from "../engine/scenario.ts";
-import type { Scenario } from "../engine/scenario.ts";
+import { BY_ID, Loaded, computed, everyAcl } from "../engine/scenario.ts";
+import type { Scenario, Step } from "../engine/scenario.ts";
 
 const NS = "https://ijm.github.io/shredtree-xml/shredtree.xsd";
 const XMLNS = "http://www.w3.org/2000/xmlns/";
 
-/** One element that opens. */
+/** One element that opens, or the placeholder for a computed step whose node doesn't. */
 export interface Item {
   id: string;
   tag: string;
@@ -17,13 +19,17 @@ export interface Item {
   text: string;
   parent: string | null;  // null: directly in the scenario
   kids: string[];
+  missing?: boolean;      // a placeholder: its id is MISSING and the step's name
 }
 
 export interface View {
   items: Map<string, Item>;
   order: string[];  // document order, so every parent comes before its children
   edges: { source: string; target: string }[];
+  ready: Set<string>;  // placeholders whose step can be built now
 }
+
+const MISSING = "missing:";
 
 /** The elements enclosing `id`, innermost first. */
 export function ancestors(view: View, id: string): string[] {
@@ -50,6 +56,7 @@ export interface Info {
   acl?: string;        // the ACL the demo applied here
   inherited: boolean;  // an ancestor has an ACL applied
   derived: boolean;    // made from something, or inside something that was
+  ready: boolean;      // a placeholder whose step can be built now
 }
 
 export class Session {
@@ -62,22 +69,35 @@ export class Session {
   readonly acls: string[];
   /** The key the lock button applies. */
   readonly lockKey: string;
+  readonly #steps: Step[];
   readonly #labels = new Map<string, string>();
   readonly #transforms = new Map<string, string>();
   readonly #derived = new Map<string, string[]>();  // st:id -> the st:ids it was made from
   readonly #acl = new Map<string, string>();
 
-  constructor(engine: Engine, scenario: Scenario) {
-    this.loaded = new Loaded(engine, scenario);
+  /** With `byHand`, computed steps are not run on loading but wait to be built. */
+  constructor(engine: Engine, scenario: Scenario, byHand = false) {
+    this.loaded = new Loaded(engine, scenario, { transforms: !byHand });
     this.acls = [...new Set(["Alice", "Bob", ...everyAcl(scenario)])].sort();
     this.lockKey = "Alice";
-    for (const step of scenario.steps) {
-      const id = this.loaded.ids.get(step.as)!;
-      this.#labels.set(id, step.as);
-      if (step.transform) this.#transforms.set(id, step.transform);
-      if (step.from) this.#derived.set(id, step.from.map((r) => this.loaded.resolve(r)));
-      if (step.acl) this.#acl.set(id, step.acl);
-    }
+    this.#steps = scenario.steps;
+    for (const step of this.#steps) if (this.loaded.ids.has(step.as)) this.#register(step);
+  }
+
+  /** What the demo knows of the node the step's label names now. */
+  #register(step: Step): void {
+    const id = this.loaded.ids.get(step.as)!;
+    this.#labels.set(id, step.as);
+    if (step.transform) this.#transforms.set(id, step.transform);
+    if (step.from) this.#derived.set(id, step.from.map((r) => this.loaded.resolve(r)));
+    if (step.acl) this.#acl.set(id, step.acl);
+  }
+
+  /** Build the computed step `name` from what the store holds now, through `keys`. */
+  build(name: string, keys: string[]): void {
+    const step = this.#steps.find((s) => s.as === name)!;
+    this.loaded.build(step, keys);
+    this.#register(step);
   }
 
   view(keys: string[]): View {
@@ -102,14 +122,59 @@ export class Session {
     for (const xml of found) walk(parser.parseFromString(xml, "application/xml").documentElement, null);
     const edges = [...this.#derived].filter(([target]) => items.has(target))
       .flatMap(([target, refs]) => refs.filter((r) => items.has(r)).map((source) => ({ source, target })));
-    return { items, order, edges };
+
+    const ready = new Set<string>();
+    for (const step of this.#steps.filter(computed)) {
+      const id = this.loaded.ids.get(step.as);
+      if (id !== undefined && items.has(id)) continue;
+      const parent = step.into === undefined ? null : this.#find(step.into, items, keys);
+      if (parent === undefined) continue;  // nowhere to show it
+      const pid = MISSING + step.as;
+      items.set(pid, { id: pid, tag: "", attrs: [], text: "", parent, kids: [], missing: true });
+      if (parent !== null) items.get(parent)!.kids.push(pid);
+      order.push(pid);
+      const sources = (step.from ?? []).map((r) => this.#find(r, items, keys));
+      for (const source of sources) if (source !== undefined) edges.push({ source, target: pid });
+      if (sources.every((x) => x !== undefined) && (step.acl === undefined || keys.includes(step.acl))) {
+        ready.add(pid);
+      }
+    }
+
+    // top-level nodes in step order, whatever order they were built in
+    const place = new Map<string, number>();
+    this.#steps.forEach((s, i) => {
+      place.set(MISSING + s.as, i);
+      const id = this.loaded.ids.get(s.as);
+      if (id !== undefined) place.set(id, i);
+    });
+    const tops = order.filter((id) => items.get(id)!.parent === null)
+      .sort((a, b) => (place.get(a) ?? Infinity) - (place.get(b) ?? Infinity));
+    const preorder = (id: string): string[] => [id, ...items.get(id)!.kids.flatMap(preorder)];
+    return { items, order: tops.flatMap(preorder), edges, ready };
+  }
+
+  /** The st:id a ref names, if that node is in `items`: its label's node now, or the one
+   * an XPath from it selects through `keys`. */
+  #find(ref: string, items: Map<string, Item>, keys: string[]): string | undefined {
+    const slash = ref.indexOf("/");
+    const id = this.loaded.ids.get(slash < 0 ? ref : ref.slice(0, slash));
+    if (id === undefined || !items.has(id)) return undefined;
+    if (slash < 0) return id;
+    const found = this.loaded.engine.run(
+      { op: "query", xpath: `/*/${ref.slice(slash + 1)}/string(@st:id)`, at: id }, keys) as string[];
+    return found.length === 1 && items.has(found[0]) ? found[0] : undefined;
   }
 
   info(view: View, id: string): Info {
+    if (view.items.get(id)!.missing) {
+      const step = this.#steps.find((s) => MISSING + s.as === id)!;
+      return { label: step.as, transform: step.transform, acl: step.acl, inherited: false, derived: true,
+               ready: view.ready.has(id) };
+    }
     const up = ancestors(view, id);
     return { label: this.#labels.get(id), transform: this.#transforms.get(id), acl: this.#acl.get(id),
              inherited: up.some((p) => this.#acl.has(p)),
-             derived: [id, ...up].some((n) => this.#derived.has(n)) };
+             derived: [id, ...up].some((n) => this.#derived.has(n)), ready: false };
   }
 
   /** `id`, and every visible node made, transitively, from it, from anything inside it,
@@ -148,7 +213,8 @@ export class Session {
     const up = new Set<string>(), todo = [id];
     for (let n = todo.pop(); n !== undefined; n = todo.pop()) {
       for (const m of region(view, n)) {
-        for (const r of this.#derived.get(m) ?? []) {
+        const refs = this.#derived.get(m) ?? view.edges.filter((e) => e.target === m).map((e) => e.source);
+        for (const r of refs) {
           if (view.items.has(r) && !up.has(r)) {
             up.add(r);
             todo.push(r);
@@ -184,6 +250,9 @@ export class Session {
       const name = names.get(id);
       if (name !== undefined) names.set(inserted.id, name);
     }
+    // a step's own node, re-inserted: its label now names the new one
+    const label = this.#labels.get(id);
+    if (label !== undefined && this.loaded.ids.get(label) === id) this.loaded.ids.set(label, inserted.id);
     if (refs.length) this.#derived.set(inserted.id, refs);
     if (acl) this.#acl.set(inserted.id, acl);
   }

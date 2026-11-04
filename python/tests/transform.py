@@ -1,10 +1,10 @@
 """Deterministic transforms: derived nodes made from their sources by code, so the tests
 and the demo can make (and remake) them instead of carrying hand-written results.
 
-    apply(name, sources) -> xml
+    apply(name, sources, args) -> xml
 
 `sources` are what a query of the store returns: serialized elements, each a whole
-subtree. The result is one serialized element, ready to insert, tagged with the
+subtree; `args` are the step's own arguments, for the transforms that take any. The result is one serialized element, ready to insert, tagged with the
 transform's name. The store's own attributes (st:id, st:integrity) are dropped from
 anything copied across, since the store gives the new node its own.
 
@@ -25,10 +25,10 @@ __all__ = ["TRANSFORMS", "apply"]
 _ST = "{https://ijm.github.io/shredtree-xml/shredtree.xsd}"
 
 type Content = str | list[ET.Element]
-type Transform = Callable[[list[ET.Element]], Content]
+type Transform = Callable[[list[ET.Element], Sequence[object]], Content]
 
 
-def apply(name: str, sources: Sequence[str]) -> str:
+def apply(name: str, sources: Sequence[str], args: Sequence[object] = ()) -> str:
     try:
         transform = TRANSFORMS[name]
     except KeyError:
@@ -36,7 +36,7 @@ def apply(name: str, sources: Sequence[str]) -> str:
         raise ValueError(f"no transform {name!r} (known: {known})") from None
     if not sources:
         raise ValueError(f"{name} needs at least one source")
-    content = transform([_without_store_attributes(ET.fromstring(s)) for s in sources])
+    content = transform([_without_store_attributes(ET.fromstring(s)) for s in sources], args)
     out = ET.Element(name)
     if isinstance(content, str):
         out.text = content
@@ -76,7 +76,7 @@ def _copy(part: ET.Element, f: Callable[[str], str]) -> ET.Element:
 # -- transforms that rewrite text, keeping the sources' structure --------------------
 
 def _rewriting(f: Callable[[str], str]) -> Transform:
-    def transform(sources: list[ET.Element]) -> Content:
+    def transform(sources: list[ET.Element], _args: Sequence[object]) -> Content:
         if _single_leaf(sources):
             return f(sources[0].text or "")
         return [_copy(p, f) for s in sources for p in _parts(s)]
@@ -94,7 +94,7 @@ def _disemvowel(text: str) -> str:
 
 # -- transforms that combine sources --------------------------------------------------
 
-def _interleave(sources: list[ET.Element]) -> Content:
+def _interleave(sources: list[ET.Element], _args: Sequence[object]) -> Content:
     """Parts taken in turn from each source; a longer source's extra parts come last."""
     if _single_leaf(sources):
         return sources[0].text or ""
@@ -108,7 +108,7 @@ _WORD = re.compile(r"\w+(?:['’]\w+)*")  # so "l'article" is one word
 _SENTENCE_END = re.compile(r"[.!?]+")
 
 
-def _count(sources: list[ET.Element]) -> Content:
+def _count(sources: list[ET.Element], _args: Sequence[object]) -> Content:
     # counted text by text, so words and sentences never run across element boundaries
     texts = [t for s in sources for t in s.itertext()]
     letters = sum(c.isalpha() for t in texts for c in t)
@@ -121,6 +121,14 @@ def _n(count: int, noun: str) -> str:
     return f"{count} {noun}{'' if count == 1 else 's'}"
 
 
+def _message(_sources: list[ET.Element], args: Sequence[object]) -> Content:
+    """args[0], whatever the sources say: they still make it a derived node, so it dies
+    with them and can be built again."""
+    if not args or not isinstance(args[0], str):
+        raise ValueError("message needs its text as args[0]")
+    return args[0]
+
+
 TRANSFORMS: dict[str, Transform] = {
     "uppercase": _rewriting(str.upper),
     "lowercase": _rewriting(str.lower),
@@ -128,4 +136,5 @@ TRANSFORMS: dict[str, Transform] = {
     "concatenate": _rewriting(_unchanged),
     "interleave": _interleave,
     "count": _count,
+    "message": _message,
 }
