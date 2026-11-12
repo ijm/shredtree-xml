@@ -3,13 +3,14 @@
 // lineage and fades the rest; hovering a control shows, in the alarm colour, what that
 // action would take with it. None of that lays anything out again.
 
-import { Background, BackgroundVariant, Handle, Position, ReactFlow } from "@xyflow/react";
+import { Background, BackgroundVariant, Handle, Position, ReactFlow, useReactFlow, useStore } from "@xyflow/react";
 import type { Edge, Node, NodeProps } from "@xyflow/react";
-import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, Ref } from "react";
 
 import { KEY, LOCK, TOOLS, TRASH, UNLOCK } from "./icons.ts";
-import { layout } from "./layout.ts";
+import { TAB, layout } from "./layout.ts";
+import type { Box } from "./layout.ts";
 import { ancestors } from "./model.ts";
 import type { Info, Item, Session, View } from "./model.ts";
 
@@ -57,7 +58,7 @@ function Head({ item, info }: Data) {
       <span className="what">
         {info.transform !== undefined && (
           // builds the step's node: only for a placeholder, once what it needs is there
-          <><button type="button" className="nodrag transform" disabled={!info.ready}
+          <><button type="button" className={info.ready ? "nodrag transform on" : "nodrag transform"} disabled={!info.ready}
                     title={item.missing ? `build with ${info.transform}` : `made by ${info.transform}`}
                     onClick={() => act.build(info.label!)}><span className="icon">{TOOLS}</span>{info.transform}</button>→</>
         )}
@@ -162,9 +163,16 @@ function Measure({ view, infos, into }: { view: View; infos: Map<string, Info>; 
   );
 }
 
-export function Graph({ view, session, actions }: { view: View; session: Session; actions: Actions }) {
+/** Every graph starts at, and returns to, the zoom where node text is its own 12px: so
+ * text is the same size in every scenario, rather than as big as fitting the frame makes it. */
+const START_ZOOM = 1;
+const MARGIN = 24;
+
+/** `home` changes when the starting view is asked for again. */
+export function Graph({ view, session, actions, home }: { view: View; session: Session; actions: Actions; home: number }) {
   const measure = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<FlowNode[] | null>(null);
+  const [bounds, setBounds] = useState<Box | null>(null);  // the whole graph, as laid out
   const infos = useMemo(() => new Map(view.order.map((id) => [id, session.info(view, id)])), [view, session]);
 
   useLayoutEffect(() => {
@@ -178,6 +186,14 @@ export function Graph({ view, session, actions }: { view: View; session: Session
       const named = new Set(view.order.filter((id) => infos.get(id)!.label !== undefined));
       const boxes = await layout(view, sizes, named);
       if (!live) return;
+      const tops = view.order.filter((id) => view.items.get(id)!.parent === null).map((id) => {
+        // a name tab sits above its node, so it is part of what is on show
+        const b = boxes.get(id)!, tab = named.has(id) ? TAB : 0;
+        return { ...b, y: b.y - tab, height: b.height + tab };
+      });
+      const x = Math.min(...tops.map((b) => b.x)), y = Math.min(...tops.map((b) => b.y));
+      setBounds({ x, y, width: Math.max(...tops.map((b) => b.x + b.width)) - x,
+                  height: Math.max(...tops.map((b) => b.y + b.height)) - y });
       setNodes(view.order.map((id): FlowNode => {
         const item = view.items.get(id)!;
         const { x, y, width, height } = boxes.get(id)!;
@@ -194,6 +210,34 @@ export function Graph({ view, session, actions }: { view: View; session: Session
     });
     return () => { live = false; };
   }, [view, infos]);
+
+  // The starting view: centred where the graph fits, from its top or left edge where it
+  // doesn't, so a big graph is read from its start. Once per load, when React Flow is
+  // ready (it ignores a viewport set before then) and the canvas has its size; then
+  // whenever asked for. The bounds are the layout's, which already knows every size.
+  const flow = useReactFlow();
+  const [ready, setReady] = useState(false);
+  const width = useStore((s) => s.width), height = useStore((s) => s.height);
+  const goHome = useCallback(() => {
+    if (bounds === null) return;
+    const place = (start: number, size: number, room: number) =>
+      size * START_ZOOM + 2 * MARGIN <= room ? (room - size * START_ZOOM) / 2 - start * START_ZOOM : MARGIN - start * START_ZOOM;
+    void flow.setViewport({ x: place(bounds.x, bounds.width, width), y: place(bounds.y, bounds.height, height), zoom: START_ZOOM });
+  }, [flow, bounds, width, height]);
+  const placed = useRef(false);
+  useEffect(() => {
+    if (ready && width > 0 && height > 0 && !placed.current) {
+      placed.current = true;
+      goHome();
+    }
+  }, [ready, width, height, goHome]);
+  const asked = useRef(home);
+  useEffect(() => {
+    if (home !== asked.current) {
+      asked.current = home;
+      goHome();
+    }
+  }, [home, goHome]);
 
   const h = actions.highlight;
   const edges = useMemo(() => view.edges.map((e): Edge => ({
@@ -219,10 +263,11 @@ export function Graph({ view, session, actions }: { view: View; session: Session
       {nodes && (
         <ReactFlow
           nodes={nodes} edges={edges} nodeTypes={nodeTypes} colorMode="dark"
-          fitView fitViewOptions={{ padding: 0.08 }} minZoom={0.1}
+          minZoom={0.1} onInit={() => setReady(true)}
           nodesDraggable={false} nodesConnectable={false} elementsSelectable={false}
         >
           <Background variant={BackgroundVariant.Lines} gap={48} lineWidth={0.5} />
+          <div className="hint" aria-hidden>drag to pan · scroll to zoom</div>
         </ReactFlow>
       )}
     </ActionsContext>

@@ -134,7 +134,12 @@ export class Session {
       if (parent !== null) items.get(parent)!.kids.push(pid);
       order.push(pid);
       const sources = (step.from ?? []).map((r) => this.#find(r, items, keys));
-      for (const source of sources) if (source !== undefined) edges.push({ source, target: pid });
+      // a source still to be built is drawn as an edge from its placeholder, so the layout
+      // knows where this step goes; but only real sources make it buildable
+      (step.from ?? []).forEach((ref, k) => {
+        const source = sources[k] ?? (items.has(MISSING + ref) ? MISSING + ref : undefined);
+        if (source !== undefined) edges.push({ source, target: pid });
+      });
       if (sources.every((x) => x !== undefined) && (step.acl === undefined || keys.includes(step.acl))) {
         ready.add(pid);
       }

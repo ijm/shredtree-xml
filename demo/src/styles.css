@@ -31,6 +31,7 @@
   --line: #1c4c63;
   --blue: #5cc8f0;
   --green: #45d6a0;
+  --key-on: oklch(0.85 0.18 132);  /* a key that is present: green, cooler than the alarm */
   --text: #a9c7d1;
   --dim: #4a6a78;
   --halo: #b6fbff;
@@ -57,7 +58,7 @@
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 
-button, select {
+select {
   font: inherit;
   color: inherit;
   background: transparent;
@@ -66,7 +67,40 @@ button, select {
   padding: 1px 6px;
   cursor: pointer;
 }
-button:hover:not(:disabled), select:hover { border-color: var(--blue); color: var(--blue); }
+select:hover { border-color: var(--blue); color: var(--blue); }
+
+/* Buttons: a thin outline in the button's tone. Being on (a present key, a step that can
+   be built now) is said by its own tone, bright and glowing, so it is never outshone by a
+   hover; hovering lifts whatever the button is now further towards white, so an on button
+   hovered is brighter still, in its own tone. Dim when disabled, or off (an absent key,
+   still clickable). Pressed, a button fills solid, and the fill fades out after release:
+   a transition only on the way out. */
+button {
+  --tone: var(--blue);
+  font: inherit;
+  color: color-mix(in oklab, var(--tone) 70%, var(--bg));
+  background: transparent;
+  border: 1px solid color-mix(in oklab, var(--tone) 45%, var(--bg));
+  border-radius: 2px;
+  padding: 1px 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease-out, color 0.3s ease-out, border-color 0.15s, box-shadow 0.15s;
+}
+button.on:not(:disabled), button:hover:not(:disabled) {
+  color: color-mix(in oklab, var(--tone) 70%, white);
+  border-color: color-mix(in oklab, var(--tone) 70%, white);
+  box-shadow: 0 0 10px color-mix(in oklab, var(--tone) 60%, transparent);
+}
+button.on:hover:not(:disabled) {
+  color: color-mix(in oklab, var(--tone) 45%, white);
+  border-color: color-mix(in oklab, var(--tone) 45%, white);
+  box-shadow: 0 0 14px color-mix(in oklab, var(--tone) 70%, transparent);
+}
+button.off:not(:hover) {
+  color: color-mix(in oklab, var(--tone) 40%, var(--bg));
+  border-color: color-mix(in oklab, var(--tone) 22%, var(--bg));
+}
+button:active:not(:disabled) { color: var(--bg); background: var(--tone); border-color: var(--tone); transition: none; }
 button:disabled { cursor: default; opacity: 0.4; }
 
 /* A clickable button glows once when it appears or becomes clickable, to say "click me"
@@ -81,12 +115,13 @@ button:disabled { cursor: default; opacity: 0.4; }
   0%, 100% { filter: none; }
   50% { filter: drop-shadow(0 0 2px var(--pulse)) drop-shadow(0 0 7px var(--pulse)); }
 }
-button { --pulse: var(--blue); }
+button { --pulse: var(--tone); }
 button:not(:disabled) { animation: pulse var(--t-flash) ease-in-out; }
-@media (prefers-reduced-motion: reduce) { button:not(:disabled), .controls { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { button:not(:disabled), .controls, .tooltip { animation: none !important; } }
 
-/* icons (glyphs from the Nerd Font) at about 1.7 times the text around them */
-.icon { font-size: 1.7em; line-height: 1; }
+/* icons (glyphs from the Nerd Font) at about 1.7 times the text around them, always in our
+   own font: other fonts don't have these code points, and would show something else */
+.icon { font-family: "Mono", monospace; font-size: 1.7em; line-height: 1; }
 select option, select optgroup { background: var(--bg); }
 
 /* -- frame ----------------------------------------------------------------------- */
@@ -96,19 +131,13 @@ select option, select optgroup { background: var(--bg); }
 .panel {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   align-items: stretch;
   gap: 8px 12px;
   padding: 8px 12px 10px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   box-shadow: 0 1px 0 rgba(92, 200, 240, 0.08), 0 4px 18px rgba(0, 0, 0, 0.5);
-}
-.brand {
-  align-self: center;
-  font: 400 13px "Mono", monospace;
-  letter-spacing: 0.25em;
-  color: var(--blue);
-  text-transform: uppercase;
 }
 .group {
   display: flex;
@@ -127,8 +156,54 @@ select option, select optgroup { background: var(--bg); }
   text-transform: uppercase;
   letter-spacing: 0.15em;
 }
-.group.about { flex: 1 1 320px; }
-.group.about p { margin: 0; }
+
+/* the scenario's description: a tooltip on the info button, shown while the button or the
+   tooltip is hovered, or the button has keyboard focus, and for a moment whenever a
+   scenario appears, so you know it is there. Its top padding bridges the gap, so moving
+   onto it keeps it open. */
+.about {
+  /* lit like the hovered button that opens it, so the two read as one thing */
+  --tip: color-mix(in oklab, var(--blue) 70%, white);
+  position: relative;
+  display: flex;
+}
+.about .tooltip {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  width: max-content;
+  max-width: 420px;
+  padding-top: 8px;
+  opacity: 0;
+  pointer-events: none;
+  animation: show var(--t-flash) ease-in-out;
+  transition: opacity var(--t-out);
+}
+.about .tooltip > span {
+  position: relative;
+  display: block;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--tip);
+  border-radius: 2px;
+  box-shadow: 0 0 10px color-mix(in oklab, var(--blue) 60%, transparent), 0 4px 18px rgba(0, 0, 0, 0.5);
+}
+/* a spike from the box up to the button: a square turned 45 degrees, two of its sides
+   lit, sitting on the box's top edge under the middle of the button */
+.about .tooltip > span::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 10px;
+  width: 10px;
+  height: 10px;
+  background: var(--panel);
+  border-top: 1px solid var(--tip);
+  border-left: 1px solid var(--tip);
+  transform: rotate(45deg);
+}
+.about:is(:hover, :has(:focus-visible)) .tooltip { opacity: 1; pointer-events: auto; transition-duration: var(--t-in); }
 .panel select { max-width: 360px; padding: 3px 6px; }
 .group > button.icon { padding: 1px 6px; }
 
@@ -140,23 +215,11 @@ select option, select optgroup { background: var(--bg); }
   gap: 6px;
   width: 13em;
   padding: 2px 8px;
-  color: var(--dim);
 }
+.key.on { --tone: var(--key-on); }
 .key .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .key .state { font: 300 10px "Mono", monospace; text-transform: uppercase; letter-spacing: 0.1em; }
-.key.present {
-  --pulse: var(--green);
-  color: var(--bg);
-  background: var(--green);
-  border-color: var(--green);
-  box-shadow: 0 0 10px 1px rgba(69, 214, 160, 0.35);
-}
-/* hovered, it brightens in its own green, as other buttons brighten in theirs */
-.key.present:hover:not(:disabled) {
-  color: var(--bg);
-  background: oklch(0.88 0.13 164);
-  border-color: oklch(0.88 0.13 164);
-}
+
 
 .error {
   padding: 4px 12px;
@@ -199,8 +262,7 @@ select option, select optgroup { background: var(--bg); }
   --ring: oklch(var(--lightness) 0.15 var(--hue) / calc(var(--boost) / 0.22));
   --glow: oklch(calc(var(--lightness) - 0.07) 0.15 var(--hue) / calc(var(--boost) * 2));
   --name-colour: oklch(calc(0.72 + var(--boost)) 0.06 var(--hue));
-  --alarm: oklch(0.78 0.15 calc(var(--hue) + 180));         /* the node's hue turned 180 */
-  --alarm-bright: oklch(0.88 0.15 calc(var(--hue) + 180));
+  --alarm: oklch(0.78 0.15 calc(var(--hue) + 180));  /* the node's hue turned 180 */
   --dash-width: calc(1px + var(--boost) * 4.545px);  /* a keyed border: 1px, 2px when lit */
   border: 1px solid var(--line-colour);
   box-shadow: 0 0 0 1px var(--ring), 0 0 14px 2px var(--glow);
@@ -297,21 +359,16 @@ select option, select optgroup { background: var(--bg); }
 .head .id, .head .controls { flex-shrink: 0; }
 .head .tag { color: var(--accent); font-weight: 400; }
 .head .tag .angle { color: var(--dim); font-weight: 300; }
-/* the transform, as a button that is switched off: drawn so it reads as one, not hidden */
+/* the transform that makes a step, as its rebuild button: in the alarm colour, on when the
+   step can be built now, and dim (disabled) otherwise */
 .head button.transform {
+  --tone: var(--alarm);
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 0 5px;
   line-height: 14px;
-  color: var(--accent);
-  border: 1px solid oklch(0.5 0.08 var(--hue-green));
-  background: oklch(0.3 0.04 var(--hue-green) / 0.35);
 }
-.head button.transform:disabled { opacity: 0.6; }
-/* a step that can be built now: the alarm colour, so it stands out as something to do */
-.head button.transform:not(:disabled) { color: var(--bg); background: var(--alarm); border-color: var(--alarm); --pulse: var(--alarm); }
-.head button.transform:not(:disabled):hover { color: var(--bg); background: var(--alarm-bright); border-color: var(--alarm-bright); }
 
 /* a computed step not in the store: its outline and name, empty, to be built */
 .st-node.missing { --fill: transparent; }
@@ -324,11 +381,10 @@ select option, select optgroup { background: var(--bg); }
 @keyframes show { 50% { opacity: 1; } }
 .controls { display: flex; gap: 3px; opacity: 0; animation: show var(--t-flash) ease-in-out; }
 .st-node:hover .controls, .st-node:focus-within .controls { opacity: 1; }
-.controls button { padding: 1px 4px; border-color: transparent; }
+.controls button { padding: 1px 4px; }
 .st-node:hover .controls button:not(:disabled), .st-node:focus-within .controls button:not(:disabled) {
   animation: pulse-again var(--t-flash-again) ease-in-out;
 }
-.controls button:hover:not(:disabled) { border-color: var(--blue); }
 
 .body {
   padding: 2px 8px 7px;
@@ -356,6 +412,108 @@ select option, select optgroup { background: var(--bg); }
   transition: --edge-hue var(--t-in), --edge-boost var(--t-in), opacity var(--t-in);
 }
 
+/* how to move around, for anyone who skipped the intro: quiet, out of the way */
+.canvas .hint {
+  position: absolute;
+  left: 12px;
+  bottom: 8px;
+  z-index: 5;
+  font: 300 10px "Mono", monospace;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  pointer-events: none;
+}
+
 /* off-screen copies of the leaves, for measuring */
 .measure { position: absolute; visibility: hidden; left: -10000px; top: 0; }
 .measure button, .measure .controls { animation: none; }  /* nobody sees these copies */
+
+/* -- intro ----------------------------------------------------------------------- */
+/* A calm page, not a control: prose in the system's own sans-serif, light grey on a sheet a
+   little lighter than the app, with the demo's styling kept for what carries meaning there
+   (the wordmark, the icons, the stills, the buttons). The panel is a window of its own:
+   its text scrolls inside it, the close button and footer stay put, and scrolling never
+   carries on into the page behind. */
+.intro {
+  --prose: oklch(0.88 0.01 230);
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 5vh 16px;
+  background: rgba(4, 8, 12, 0.82);
+  backdrop-filter: blur(6px);
+}
+.intro article {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 720px;
+  max-height: 100%;
+  padding: 28px 0 20px;
+  background: oklch(0.19 0.012 235);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  font: 400 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--prose);
+}
+.intro .close { position: absolute; top: 10px; right: 10px; padding: 1px 4px; }
+.intro .scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 32px; }
+.intro h1 { margin: 0; font: 300 30px "Mono", monospace; letter-spacing: 0.04em; color: var(--blue); }
+.intro .lead { margin: 6px 0 20px; font-size: 18px; color: oklch(0.94 0.01 230); }
+.intro h2 { margin: 28px 0 12px; font-size: 17px; font-weight: 600; color: oklch(0.94 0.01 230); }
+.intro p { margin: 0 0 12px; }
+.intro b { font-weight: 600; }
+
+/* the key to the graph: each control as it looks there, and what it does */
+.intro .legend { display: grid; grid-template-columns: 64px 1fr; gap: 10px 14px; align-items: center; margin: 0 0 14px; }
+.intro .legend dt { display: flex; justify-content: flex-end; gap: 6px; color: var(--blue); font: 300 13px "Mono", monospace; }
+.intro .legend dd { margin: 0; }
+.intro .legend .tools { color: oklch(0.78 0.15 calc(var(--hue-blue) + 180)); }
+.intro .tab-sample {
+  padding: 0 7px;
+  font: 300 10px/15px "Mono", monospace;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+}
+
+/* a still follows its text, which tells the story; shown at its own size (scaled down only
+   if the window is narrower), so every still's text is the same size */
+.intro figure { margin: 18px 0 0; }
+.intro figcaption { margin-bottom: 8px; }
+.intro figure img {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+.intro footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px 32px 0;
+  border-top: 1px solid var(--line);
+}
+.intro .status { font-size: 13px; color: var(--dim); }
+.intro .enter { padding: 4px 16px; }
+
+/* the way back to the intro, at the end of the scenario's description */
+.tooltip button.link {
+  display: block;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  color: var(--tip);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  box-shadow: none;
+}

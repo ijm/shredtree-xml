@@ -4,3 +4,7 @@ export const LOCK = "\uea75";
 export const UNLOCK = "\ueb74";
 export const KEY = "\ueb11";
 export const TOOLS = "\ueb6d";
+export const RELOAD = "\ueb37";
+export const INFO = "\uea74";
+export const CLOSE = "\uea76";
+export const HOME = "\ueb06";

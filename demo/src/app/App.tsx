@@ -1,11 +1,12 @@
 import { ReactFlowProvider } from "@xyflow/react";
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 
 import type { Engine } from "../engine/engine.ts";
 import { SCENARIOS, engine as startEngine } from "./boot.ts";
 import { Graph, QUIET } from "./Graph.tsx";
 import type { Actions, Highlight } from "./Graph.tsx";
-import { KEY } from "./icons.ts";
+import { HOME, INFO, KEY, RELOAD } from "./icons.ts";
+import { Intro } from "./Intro.tsx";
 import { Session } from "./model.ts";
 
 export function App() {
@@ -16,9 +17,15 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [keys, setKeys] = useState<string[]>([]);
   const [writes, wrote] = useReducer((n: number) => n + 1, 0);
+  const [homes, goHome] = useReducer((n: number) => n + 1, 0);  // asks for the starting view
   const [focus, setFocus] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ id: string; returns: boolean } | null>(null);
   const [keyHover, setKeyHover] = useState<string | null>(null);
+  // the intro covers the page on every load; the app appears behind it only once it has
+  // been dismissed, so its buttons flash where they can be seen
+  const [intro, setIntro] = useState(true);
+  const [entered, setEntered] = useState(false);
+  const closeIntro = useCallback(() => { setIntro(false); setEntered(true); }, []);
 
   useEffect(() => {
     startEngine().then(setEngine, (e: unknown) => setError(`engine failed to start: ${e}`));
@@ -80,11 +87,11 @@ export function App() {
 
   const { scenario } = SCENARIOS[pick];
   return (
-    <div className="app">
+    <>
+    {entered && <div className="app">
       <header className="panel">
-        <span className="brand">shredtree</span>
         <fieldset className="group">
-          <legend>scenario</legend>
+          <legend>shredtree scenario</legend>
           <select value={pick} onChange={(e) => setPick(Number(e.target.value))}>
             {[...new Set(SCENARIOS.map((s) => s.group))].map((group) => (
               <optgroup key={group} label={group}>
@@ -92,7 +99,20 @@ export function App() {
               </optgroup>
             ))}
           </select>
-          <button type="button" className="icon" title="load the scenario again" onClick={reload}>↺</button>
+          <button type="button" className="icon" title="load the scenario again" onClick={reload}>{RELOAD}</button>
+          <button type="button" className="icon" title="back to the starting view" onClick={goHome}>{HOME}</button>
+          {scenario.about && (
+            <span className="about">
+              <button type="button" className="icon" aria-label="about this scenario" aria-describedby="about">{INFO}</button>
+              {/* keyed by session, so each scenario flashes its description as it appears */}
+              <span className="tooltip" role="tooltip" id="about" key={session?.serial ?? "starting"}>
+                <span>
+                  {scenario.about}
+                  <button type="button" className="link" onClick={() => setIntro(true)}>what's shredtree?</button>
+                </span>
+              </span>
+            </span>
+          )}
         </fieldset>
         <fieldset className="group keyring">
           <legend>keyring</legend>
@@ -100,7 +120,7 @@ export function App() {
             const present = keys.includes(acl);
             return (
               <button
-                type="button" key={acl} className={present ? "key present" : "key"} aria-pressed={present}
+                type="button" key={acl} className={present ? "key on" : "key off"} aria-pressed={present}
                 title={present ? `key ${acl} is in the keyring: click to remove it` : `key ${acl} is not in the keyring: click to add it`}
                 onMouseEnter={() => setKeyHover(acl)} onMouseLeave={() => setKeyHover(null)}
                 onClick={() => setKeys(present ? keys.filter((k) => k !== acl) : [...keys, acl].sort())}
@@ -108,19 +128,15 @@ export function App() {
             );
           })}
         </fieldset>
-        {scenario.about && (
-          <fieldset className="group about">
-            <legend>about</legend>
-            <p>{scenario.about}</p>
-          </fieldset>
-        )}
       </header>
       {error !== null && <div className="error">{error}</div>}
       <main className="canvas">
         {view && session
-          ? <ReactFlowProvider key={session.serial}><Graph view={view} session={session} actions={actions} /></ReactFlowProvider>
+          ? <ReactFlowProvider key={session.serial}><Graph view={view} session={session} actions={actions} home={homes} /></ReactFlowProvider>
           : <div className="boot">{engine ? "loading scenario…" : "starting the store (Pyodide)…"}</div>}
       </main>
-    </div>
+    </div>}
+    {intro && <Intro ready={engine !== null} onClose={closeIntro} />}
+    </>
   );
 }
