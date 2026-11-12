@@ -9,7 +9,7 @@ X, Y = b"secret-x", b"secret-y"
 
 def test_acl_must_be_in_the_keyring() -> None:
     with pytest.raises(BadRequest):
-        Store(MemoryKV()).snapshot([X]).insert_sealed("<a/>", acl=Y)
+        Store(MemoryKV()).snapshot([X]).insert_sealed("<a/>", key=Y)
 
 
 def test_a_single_secret_is_not_a_keyring() -> None:
@@ -21,7 +21,7 @@ def test_a_single_secret_is_not_a_keyring() -> None:
 def test_a_node_under_an_acl_not_held_is_not_found() -> None:
     store = Store(MemoryKV())
     with store.snapshot([X]) as root:
-        private = root.insert_sealed("<p><q/></p>", acl=X)
+        private = root.insert_sealed("<p><q/></p>", key=X)
         inner = private[0].node_id
     for node_id in (private.node_id, inner):
         assert store.snapshot([X]).node(node_id).node_id == node_id

@@ -22,11 +22,11 @@ def url() -> Iterator[str]:
     server.server_close()
 
 
-def post(url: str, path: str, body: Any, acl: str | None = None,
+def post(url: str, path: str, body: Any, key: str | None = None,
          raw: bytes | None = None) -> tuple[int, Any]:
     headers = {"Content-Type": "application/json"}
-    if acl is not None:
-        headers["Authorization"] = f"Bearer {acl}"
+    if key is not None:
+        headers["Authorization"] = f"Bearer {key}"
     data = raw if raw is not None else json.dumps(body).encode()
     req = urllib.request.Request(url + path, data=data, headers=headers, method="POST")
     try:
@@ -36,8 +36,8 @@ def post(url: str, path: str, body: Any, acl: str | None = None,
         return e.code, json.loads(e.read())
 
 
-def result(url: str, path: str, body: Any, acl: str | None = None) -> Any:
-    status, payload = post(url, path, body, acl)
+def result(url: str, path: str, body: Any, key: str | None = None) -> Any:
+    status, payload = post(url, path, body, key)
     assert status == 200, payload
     return payload["result"]
 
@@ -75,9 +75,9 @@ def test_errors_map_to_status_codes(url: str) -> None:
 
 
 def test_acl_is_the_bearer_token(url: str) -> None:
-    result(url, "/insert", {"target": "/root", "xml": "<secret/>", "acl": "team-a"}, acl="team-a")
-    assert result(url, "/query", {"xpath": "count(//secret)"}, acl="team-a") == 1
-    assert result(url, "/query", {"xpath": "count(//secret)"}, acl="team-b,team-a") == 1
+    result(url, "/insert", {"target": "/root", "xml": "<secret/>", "key": "team-a"}, key="team-a")
+    assert result(url, "/query", {"xpath": "count(//secret)"}, key="team-a") == 1
+    assert result(url, "/query", {"xpath": "count(//secret)"}, key="team-b,team-a") == 1
     assert result(url, "/query", {"xpath": "count(//secret)"}) == 0
 
 

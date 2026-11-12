@@ -130,19 +130,19 @@ class Handle(ABC):
 
     # -- writing: the only way in -----------------------------------------------------
     def insert_sealed(self, xml: str, refs: Sequence[str] = (), index: int | None = None,
-                      acl: bytes | None = None) -> "Element":
+                      key: bytes | None = None) -> "Element":
         """Seal `xml` in as a child (at `index`, else last), derived from the nodes
         whose st:ids are `refs`. Each ref's current hash is remembered, so the new node
-        stops opening if that node is shredded or changes. `acl`, which must be in the
+        stops opening if that node is shredded or changes. `key`, which must be in the
         session's keyring, is applied to the new node and so protects its subtree."""
         try:
             el = ET.fromstring(xml.encode())
         except ET.ParseError as e:
             raise BadRequest(f"not well-formed XML: {e}") from None
-        return self._seal_in(el, refs, index, acl)
+        return self._seal_in(el, refs, index, key)
 
     def _seal_in(self, el: ET.Element, refs: Sequence[str], index: int | None,
-                 acl: bytes | None = None) -> "Element":
+                 key: bytes | None = None) -> "Element":
         ctx = self._ctx
         parent_key, chain = self._parent()
         here = {r["id"] for r in chain}
@@ -160,12 +160,12 @@ class Handle(ABC):
                 raise Unavailable(f"upstream node {ref} is not accessible")
             pinned.append({"id": rid, "integrity": h.hex()})
             hashes.append(h)
-        aid = acl_id(acl) if acl else None
+        aid = acl_id(key) if key else None
         if aid is not None and not ctx.resolver.holds(aid):
-            raise BadRequest("the ACL to apply is not in this session's keyring")
+            raise BadRequest("the key to apply is not in this session's keyring")
         nid = secrets.token_bytes(16)
-        key = ctx.resolver.node_kdf(parent_key, nid, hashes, acl or None)
-        recs = _build(ctx, el, key, nid, pinned, chain[-1]["id"] if chain else None, aid)
+        node_key = ctx.resolver.node_kdf(parent_key, nid, hashes, key or None)
+        recs = _build(ctx, el, node_key, nid, pinned, chain[-1]["id"] if chain else None, aid)
         ctx.add(recs, self._before(index))
         return Element(recs[0], ctx)
 

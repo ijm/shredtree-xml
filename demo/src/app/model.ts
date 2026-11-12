@@ -249,7 +249,7 @@ export class Session {
     const [, inserted] = this.loaded.engine.batch([
       { op: "shred", target: BY_ID, vars: { i: id } },
       { op: "insert", target: BY_ID, vars: { i: item.parent ?? this.loaded.container },
-        xml: new XMLSerializer().serializeToString(el), refs, acl },
+        xml: new XMLSerializer().serializeToString(el), refs, key: acl },
     ], acl ? [...new Set([...keys, acl])] : keys) as [number, { id: string }];
     for (const names of [this.#labels, this.#transforms]) {
       const name = names.get(id);

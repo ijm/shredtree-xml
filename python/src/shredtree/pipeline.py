@@ -27,18 +27,18 @@ class PostStore:
     def __init__(self, kv: KVStore) -> None:
         self._service = Service(kv)
 
-    def session(self, acls: Iterable[bytes] = ()) -> "PostSession":
-        return PostSession(self._service, acls)
+    def session(self, keys: Iterable[bytes] = ()) -> "PostSession":
+        return PostSession(self._service, keys)
 
 
 class PostSession:
-    def __init__(self, service: Service, acls: Iterable[bytes]) -> None:
+    def __init__(self, service: Service, keys: Iterable[bytes]) -> None:
         self._service = service
-        self._acls = acls
+        self._keys = keys
         self._tx: Transaction | None = None
 
     def __enter__(self) -> "PostSession":
-        self._tx = self._service.transaction(self._acls).__enter__()
+        self._tx = self._service.transaction(self._keys).__enter__()
         return self
 
     def __exit__(
@@ -50,16 +50,16 @@ class PostSession:
         tx, self._tx = self._live(), None
         tx.__exit__(e_type, e_value, e_traceback)
 
-    def new_post(self, post_id: str, acl: bytes | None = None) -> None:
+    def new_post(self, post_id: str, key: bytes | None = None) -> None:
         if self._live().query(f"count({_POST})", {"p": post_id}):
             raise AlreadyExists(post_id)
         post = ET.tostring(ET.Element("post", id=post_id), encoding="unicode")
-        self._live().insert("/root", post, acl=acl)
+        self._live().insert("/root", post, key=key)
 
     def push(self, post_id: str, xml: str, refs: Sequence[str] = (),
-             acl: bytes | None = None) -> str:
+             key: bytes | None = None) -> str:
         """Insert `xml` into the post; returns its st:id."""
-        return self._live().insert(_POST, xml, refs, {"p": post_id}, acl).id
+        return self._live().insert(_POST, xml, refs, {"p": post_id}, key).id
 
     def pull(self, post_id: str, node_name: str) -> list[str]:
         result: list[str] = self.query(post_id, "//*[name() = $n]", n=node_name)

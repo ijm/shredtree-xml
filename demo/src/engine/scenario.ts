@@ -129,7 +129,7 @@ export class Loaded {
 
   #insert(target: string, xml: string, refs: string[], vars: Record<string, string> = {},
           acl?: string, keys: string[] = this.keys): string {
-    const result = this.engine.run({ op: "insert", target, xml, refs, vars, acl }, keys);
+    const result = this.engine.run({ op: "insert", target, xml, refs, vars, key: acl }, keys);
     return (result as { id: string }).id;
   }
 }

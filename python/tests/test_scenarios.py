@@ -105,7 +105,7 @@ def test_check(scenario: Scenario, check: Scenario) -> None:
     elif "insert" in check:
         ins = check["insert"]
         store.svc.insert(store.keys, BY_ID, ins["xml"], vars={"i": store.resolve(ins["into"])},
-                         acl=secret(ins.get("acl")))
+                         key=secret(ins.get("acl")))
     assert [r for r, i in gone.items() if store.visible(i, keys)] == [], "should be gone"
     assert [r for r, i in kept.items() if not store.visible(i, keys)] == [], "should be kept"
     if "stale" in check:

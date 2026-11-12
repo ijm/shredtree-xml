@@ -49,11 +49,11 @@ class Store:
     def __init__(self, kv: KVStore) -> None:
         self._kv = kv
 
-    def snapshot(self, acls: Iterable[bytes] = ()) -> Root:
-        """A transaction holding the ACL secrets `acls`: nodes under any other ACL don't
+    def snapshot(self, keys: Iterable[bytes] = ()) -> Root:
+        """A transaction holding the keys `keys`: nodes under any other key don't
         open."""
         forest = Forest(self._kv)
-        return Root(Context(forest, Resolver(keyring(acls), forest)))
+        return Root(Context(forest, Resolver(keyring(keys), forest)))
 
 
 def query(node: Handle, xpath: str, **variables: Any) -> Any:

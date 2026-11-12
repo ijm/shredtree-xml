@@ -1,8 +1,8 @@
 """shredtree.service as JSON text, for any transport (e.g. shredtree.server).
 
-    call(service, acls, endpoint, body) -> (status, reply)
+    call(service, keys, endpoint, body) -> (status, reply)
 
-    /insert  {"target", "xml", "refs"?, "vars"?, "acl"?} -> {"result": {"id", "integrity"}}
+    /insert  {"target", "xml", "refs"?, "vars"?, "key"?} -> {"result": {"id", "integrity"}}
     /query   {"xpath", "vars"?, "at"?}             -> {"result": [...] or a value}
     /shred   {"target", "vars"?}                   -> {"result": <count>}
     /stale   {"target", "vars"?}                   -> {"result": [{"id", "tag", "refs"}]}
@@ -38,15 +38,15 @@ STATUS: dict[type[ShredtreeError], int] = {
 }
 
 
-def call(service: Service, acls: Iterable[bytes], endpoint: str,
+def call(service: Service, keys: Iterable[bytes], endpoint: str,
          body: str | bytes) -> tuple[int, str]:
-    """One request, holding the ACL secrets `acls`; `body` is JSON text, empty meaning {}.
-    An insert's "acl" names the secret to apply."""
+    """One request, holding the keys `keys`; `body` is JSON text, empty meaning {}.
+    An insert's "key" names the key to apply."""
     try:
         route = _ROUTES.get(endpoint)
         if route is None:
             raise NotFound(f"no such endpoint: {endpoint}")
-        results = service.batch(acls, route(_parse(body)))
+        results = service.batch(keys, route(_parse(body)))
         return 200, _dump({"result": results if endpoint == "/batch" else results[0]})
     except ShredtreeError as e:
         status = next((s for t, s in STATUS.items() if isinstance(e, t)), 400)
@@ -72,9 +72,9 @@ def _op(spec: dict[str, Any], kind: str) -> Op:
         match kind:
             case "insert":
                 refs: list[str] = spec.get("refs") or []
-                acl: str | None = spec.get("acl")
+                key: str | None = spec.get("key")
                 return Insert(spec["target"], spec["xml"], tuple(refs), vars_,
-                              acl.encode() if acl else None)
+                              key.encode() if key else None)
             case "query":
                 return Query(spec["xpath"], vars_, spec.get("at"))
             case "shred":

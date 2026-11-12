@@ -7,7 +7,7 @@ import type { PyodideAPI, loadPyodide } from "pyodide";
 type Vars = Record<string, unknown>;
 
 export type Op =
-  | { op: "insert"; target: string; xml: string; refs?: string[]; vars?: Vars; acl?: string }
+  | { op: "insert"; target: string; xml: string; refs?: string[]; vars?: Vars; key?: string }
   | { op: "query"; xpath: string; vars?: Vars; at?: string }
   | { op: "shred"; target: string; vars?: Vars }
   | { op: "stale"; target: string; vars?: Vars };
@@ -43,7 +43,7 @@ export class TransformError extends Error {
 }
 
 interface Bridge {
-  call(endpoint: string, acls: string, body: string): string;
+  call(endpoint: string, keys: string, body: string): string;
   applyTransform(name: string, sources: string, args: string): string;
   reset(): void;
 }
@@ -82,15 +82,15 @@ export class Engine {
   }
 
   /** Run `ops` as one transaction; a failure discards all of them and throws StoreError. */
-  batch(ops: Op[], acls: string[] = []): unknown[] {
-    const reply = JSON.parse(this.#bridge.call("/batch", acls.join(","), JSON.stringify({ ops }))) as Reply;
+  batch(ops: Op[], keys: string[] = []): unknown[] {
+    const reply = JSON.parse(this.#bridge.call("/batch", keys.join(","), JSON.stringify({ ops }))) as Reply;
     if ("error" in reply) throw new StoreError(reply.error, reply.message);
     return reply.result as unknown[];
   }
 
   /** Run one op as its own transaction. */
-  run(op: Op, acls: string[] = []): unknown {
-    return this.batch([op], acls)[0];
+  run(op: Op, keys: string[] = []): unknown {
+    return this.batch([op], keys)[0];
   }
 
   /** The transform `name` applied to `sources`, serialized elements as queries return

@@ -61,7 +61,7 @@ def test_batch_is_one_transaction_and_names_the_failing_op(svc: Service) -> None
 
 
 def test_acl_isolates(svc: Service) -> None:
-    svc.insert([b"team-a"], "/root", "<secret/>", acl=b"team-a")
+    svc.insert([b"team-a"], "/root", "<secret/>", key=b"team-a")
     assert svc.query([b"team-a"], "count(//secret)") == 1
     assert svc.query((), "count(//secret)") == 0
     assert svc.query([b"team-b"], "count(//secret)") == 0
