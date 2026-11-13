@@ -370,9 +370,21 @@ select option, select optgroup { background: var(--bg); }
   line-height: 14px;
 }
 
-/* a computed step not in the store: its outline and name, empty, to be built */
+/* a step whose node isn't shown: its outline and name, empty, where the node would be;
+   to be built if it's a computed step not in the store */
 .st-node.missing { --fill: transparent; }
 .st-node.missing > .head { color: var(--dim); }
+/* in the store, but not openable with these keys: dimmed and hatched, and labelled */
+.st-node.missing.invisible:not(.faded) { opacity: 0.6; }
+.st-node.missing.invisible::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(135deg,
+    color-mix(in oklch, var(--line-colour) 30%, transparent) 0 1px, transparent 1px 7px);
+}
+.head .invisible { font-weight: 400; letter-spacing: 0.2em; color: var(--dim); }
 .head .acl { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); }
 
 /* hidden until hovered, but shown for a moment when the node appears, glowing with

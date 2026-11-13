@@ -2,6 +2,8 @@
 // cut crossings, and a document's paragraphs must stay in order), and elkjs places only
 // the top-level blocks, left to right. An edge to or from something nested is a port
 // fixed at that node's height on its block, so elkjs still sees where edges really go.
+// It follows the whole pipeline (View.placing), not just the edges drawn, so a step
+// keeps its column when what it was made from is missing.
 // A named node's tab sits on its top edge, outside its box, so its slot is that much
 // taller and its box that much lower.
 
@@ -67,7 +69,7 @@ export async function layout(view: View, leaves: Map<string, { width: number; he
     }
     return pid;
   };
-  const edges: ElkExtendedEdge[] = view.edges
+  const edges: ElkExtendedEdge[] = view.placing
     .filter((e) => top.get(e.source) !== top.get(e.target))
     .map((e, i) => ({ id: `e${i}`, sources: [port(e.source, "out")], targets: [port(e.target, "in")] }));
 

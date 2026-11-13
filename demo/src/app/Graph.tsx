@@ -59,9 +59,10 @@ function Head({ item, info }: Data) {
         {info.transform !== undefined && (
           // builds the step's node: only for a placeholder, once what it needs is there
           <><button type="button" className={info.ready ? "nodrag transform on" : "nodrag transform"} disabled={!info.ready}
-                    title={item.missing ? `build with ${info.transform}` : `made by ${info.transform}`}
+                    title={item.missing === "unbuilt" ? `build with ${info.transform}` : `made by ${info.transform}`}
                     onClick={() => act.build(info.label!)}><span className="icon">{TOOLS}</span>{info.transform}</button>→</>
         )}
+        {item.missing === "invisible" && <span className="invisible">INVISIBLE</span>}
         {!item.missing
           && <span className="tag"><span className="angle">&lt;</span>{item.tag}<span className="angle">&gt;</span></span>}
         {item.attrs.map(([k, v]) => <span key={k} className="attr">{k}={v}</span>)}
@@ -103,7 +104,7 @@ function state(id: string, h: Highlight): string | false {
 
 function classes(data: Data, h: Highlight, kind: string): string {
   return ["st-node", kind, data.info.derived ? "is-derived" : "is-source",
-          data.info.acl !== undefined && "keyed", data.item.missing && "missing", state(data.item.id, h)]
+          data.info.acl !== undefined && "keyed", data.item.missing && `missing ${data.item.missing}`, state(data.item.id, h)]
     .filter(Boolean).join(" ");
 }
 

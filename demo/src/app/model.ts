@@ -1,8 +1,9 @@
 // What the canvas shows: the scenario's derivations (which node was made from which),
 // laid over whatever the store opens for the current keyring. The store only answers
 // for the elements that open, so anything shredded, dead or locked simply isn't there.
-// A computed step whose node isn't there is shown as a placeholder, built on request
-// once what it needs is there.
+// Every step whose node isn't there is shown as a placeholder, so the graph keeps its
+// shape as things come and go: a computed step to be built on request once what it needs
+// is there, a node the keyring can't open marked as invisible, and the rest as gone.
 
 import type { Engine } from "../engine/engine.ts";
 import { BY_ID, Loaded, computed, everyAcl } from "../engine/scenario.ts";
@@ -11,7 +12,11 @@ import type { Scenario, Step } from "../engine/scenario.ts";
 const NS = "https://ijm.github.io/shredtree-xml/shredtree.xsd";
 const XMLNS = "http://www.w3.org/2000/xmlns/";
 
-/** One element that opens, or the placeholder for a computed step whose node doesn't. */
+/** Why a step's node isn't shown: `unbuilt`, a computed step not in the store (to be
+ * built); `invisible`, in the store but not openable with these keys; `gone`, neither. */
+export type Missing = "unbuilt" | "invisible" | "gone";
+
+/** One element that opens, or the placeholder for a step whose node doesn't. */
 export interface Item {
   id: string;
   tag: string;
@@ -19,13 +24,17 @@ export interface Item {
   text: string;
   parent: string | null;  // null: directly in the scenario
   kids: string[];
-  missing?: boolean;      // a placeholder: its id is MISSING and the step's name
+  missing?: Missing;      // a placeholder: its id is MISSING and the step's name
 }
 
 export interface View {
   items: Map<string, Item>;
   order: string[];  // document order, so every parent comes before its children
   edges: { source: string; target: string }[];
+  /** What the layout follows: the drawn edges and, between the steps' nodes or their
+   * placeholders, the rest of the pipeline. Never drawn; they keep each step in its
+   * column whatever is missing, shredded or invisible. */
+  placing: { source: string; target: string }[];
   ready: Set<string>;  // placeholders whose step can be built now
 }
 
@@ -123,39 +132,76 @@ export class Session {
     const edges = [...this.#derived].filter(([target]) => items.has(target))
       .flatMap(([target, refs]) => refs.filter((r) => items.has(r)).map((source) => ({ source, target })));
 
-    const ready = new Set<string>();
-    for (const step of this.#steps.filter(computed)) {
-      const id = this.loaded.ids.get(step.as);
-      if (id !== undefined && items.has(id)) continue;
-      const parent = step.into === undefined ? null : this.#find(step.into, items, keys);
-      if (parent === undefined) continue;  // nowhere to show it
-      const pid = MISSING + step.as;
-      items.set(pid, { id: pid, tag: "", attrs: [], text: "", parent, kids: [], missing: true });
-      if (parent !== null) items.get(parent)!.kids.push(pid);
-      order.push(pid);
-      const sources = (step.from ?? []).map((r) => this.#find(r, items, keys));
-      // a source still to be built is drawn as an edge from its placeholder, so the layout
-      // knows where this step goes; but only real sources make it buildable
-      (step.from ?? []).forEach((ref, k) => {
-        const source = sources[k] ?? (items.has(MISSING + ref) ? MISSING + ref : undefined);
-        if (source !== undefined) edges.push({ source, target: pid });
-      });
-      if (sources.every((x) => x !== undefined) && (step.acl === undefined || keys.includes(step.acl))) {
-        ready.add(pid);
-      }
-    }
-
-    // top-level nodes in step order, whatever order they were built in
+    // every step's place in the pipeline, for its node or its placeholder
     const place = new Map<string, number>();
     this.#steps.forEach((s, i) => {
       place.set(MISSING + s.as, i);
       const id = this.loaded.ids.get(s.as);
       if (id !== undefined) place.set(id, i);
     });
+
+    // what opens with every key, so a node missing from this view can be told apart as
+    // one these keys can't open, rather than one that is gone; asked only if needed
+    let everything: Set<string> | undefined;
+    const opens = (id: string) => (everything ??= new Set(this.loaded.engine.run(
+      { op: "query", xpath: "/*//*/string(@st:id)", at: this.loaded.container }, this.acls) as string[])).has(id);
+
+    const ready = new Set<string>();
+    const unbuilt = new Set<string>();
+    for (const step of this.#steps) {
+      const id = this.loaded.ids.get(step.as);
+      if (id !== undefined && items.has(id)) continue;
+      const missing: Missing = id !== undefined && opens(id) ? "invisible" : computed(step) ? "unbuilt" : "gone";
+      // inside its parent, or its parent's placeholder; else there's nowhere to show it
+      const into = step.into;
+      const parent = into === undefined ? null
+        : this.#find(into, items, keys) ?? (items.has(MISSING + into) ? MISSING + into : undefined);
+      if (parent === undefined) continue;
+      const pid = MISSING + step.as;
+      items.set(pid, { id: pid, tag: "", attrs: [], text: "", parent, kids: [], missing });
+      if (parent !== null) {
+        // where the node was: before the first sibling from a later step
+        const kids = items.get(parent)!.kids;
+        const later = kids.findIndex((k) => (place.get(k) ?? -1) > place.get(pid)!);
+        kids.splice(later < 0 ? kids.length : later, 0, pid);
+      }
+      order.push(pid);
+      if (missing !== "unbuilt") continue;  // nothing to build, and no edges to draw
+      unbuilt.add(pid);
+      const sources = (step.from ?? []).map((r) => this.#find(r, items, keys));
+      // a source still to be built is drawn as an edge from its placeholder, so the layout
+      // knows where this step goes; but only real sources make it buildable
+      (step.from ?? []).forEach((ref, k) => {
+        const source = sources[k] ?? (unbuilt.has(MISSING + ref) ? MISSING + ref : undefined);
+        if (source !== undefined) edges.push({ source, target: pid });
+      });
+      if (sources.every((x) => x !== undefined) && (parent === null || !items.get(parent)!.missing)
+          && (step.acl === undefined || keys.includes(step.acl))) {
+        ready.add(pid);
+      }
+    }
+
+    // top-level nodes in step order, whatever order they were built in
     const tops = order.filter((id) => items.get(id)!.parent === null)
       .sort((a, b) => (place.get(a) ?? Infinity) - (place.get(b) ?? Infinity));
     const preorder = (id: string): string[] => [id, ...items.get(id)!.kids.flatMap(preorder)];
-    return { items, order: tops.flatMap(preorder), edges, ready };
+    // a step's node, or its placeholder
+    const node = (label: string) => {
+      const id = this.loaded.ids.get(label);
+      return id !== undefined && items.has(id) ? id : items.has(MISSING + label) ? MISSING + label : undefined;
+    };
+    const placing = new Map(edges.map((e) => [`${e.source}>${e.target}`, e]));
+    for (const step of this.#steps) {
+      const target = node(step.as);
+      if (target === undefined) continue;
+      for (const ref of step.from ?? []) {
+        // the node the ref names if it's there; else the node, or placeholder, it's in
+        const owner = node(ref.split("/")[0]);
+        const source = (owner !== undefined && !items.get(owner)!.missing ? this.#find(ref, items, keys) : undefined) ?? owner;
+        if (source !== undefined) placing.set(`${source}>${target}`, { source, target });
+      }
+    }
+    return { items, order: tops.flatMap(preorder), edges, placing: [...placing.values()], ready };
   }
 
   /** The st:id a ref names, if that node is in `items`: its label's node now, or the one
