@@ -9,7 +9,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import type { CSSProperties, Ref } from "react";
 
 import { KEY, LOCK, TOOLS, TRASH, UNLOCK } from "./icons.ts";
-import { TAB, layout } from "./layout.ts";
+import { FLOOR, TAB, layout } from "./layout.ts";
 import type { Box } from "./layout.ts";
 import { ancestors } from "./model.ts";
 import type { Info, Item, Session, View } from "./model.ts";
@@ -19,6 +19,7 @@ interface Data extends Record<string, unknown> {
   info: Info;
   depth?: number;  // boxes around this one: 0 at the top level
   nest?: number;   // levels of boxes inside this one: 0 for a leaf
+  slack?: number;  // a top-level node's height its contents don't fill, at the bottom
 }
 
 type FlowNode = Node<Data, "leaf" | "box">;
@@ -135,6 +136,8 @@ function GraphNode({ data }: NodeProps<FlowNode>) {
       <Handle type="target" position={Position.Left} />
       <Tab {...data} />
       <Contents {...data} />
+      {/* an invisible node is hatched all over already */}
+      {!!data.slack && data.item.missing !== "invisible" && <div className="slack" style={{ height: data.slack }} />}
       <Handle type="source" position={Position.Right} />
     </div>
   );
@@ -175,6 +178,9 @@ export function Graph({ view, session, actions, home }: { view: View; session: S
   const [nodes, setNodes] = useState<FlowNode[] | null>(null);
   const [bounds, setBounds] = useState<Box | null>(null);  // the whole graph, as laid out
   const infos = useMemo(() => new Map(view.order.map((id) => [id, session.info(view, id)])), [view, session]);
+  // the tallest each top-level node has been this session, by step name (else by id), so
+  // its node and its placeholder share it, and nothing shrinks as its contents go
+  const held = useRef(new Map<string, number>());
 
   useLayoutEffect(() => {
     let live = true;
@@ -185,8 +191,12 @@ export function Graph({ view, session, actions, home }: { view: View; session: S
         sizes.set(id!, { width: (el as HTMLElement).offsetWidth, height: (el as HTMLElement).offsetHeight });
       }
       const named = new Set(view.order.filter((id) => infos.get(id)!.label !== undefined));
-      const boxes = await layout(view, sizes, named);
+      const hold = (id: string) => infos.get(id)!.label ?? id;
+      const boxes = await layout(view, sizes, named, (id) => Math.max(FLOOR, held.current.get(hold(id)) ?? 0));
       if (!live) return;
+      for (const id of view.order) {
+        if (view.items.get(id)!.parent === null) held.current.set(hold(id), boxes.get(id)!.height);
+      }
       const tops = view.order.filter((id) => view.items.get(id)!.parent === null).map((id) => {
         // a name tab sits above its node, so it is part of what is on show
         const b = boxes.get(id)!, tab = named.has(id) ? TAB : 0;
@@ -197,15 +207,17 @@ export function Graph({ view, session, actions, home }: { view: View; session: S
                   height: Math.max(...tops.map((b) => b.y + b.height)) - y });
       setNodes(view.order.map((id): FlowNode => {
         const item = view.items.get(id)!;
-        const { x, y, width, height } = boxes.get(id)!;
-        // leaves size themselves as they did when measured; a box takes elk's size
+        const { x, y, width, height, slack } = boxes.get(id)!;
+        // leaves size themselves as they did when measured, but a top-level one is held at
+        // its height; a box takes the layout's size
+        const top = item.parent === null;
         return {
           id,
           type: kind(item),
           parentId: item.parent ?? undefined,
           position: { x, y },
-          style: kind(item) === "box" ? { width, height } : undefined,
-          data: { item, info: infos.get(id)!, depth: ancestors(view, id).length, nest: nest(view, id) },
+          style: kind(item) === "box" ? { width, height } : top ? { height } : undefined,
+          data: { item, info: infos.get(id)!, depth: ancestors(view, id).length, nest: nest(view, id), slack },
         };
       }));
     });

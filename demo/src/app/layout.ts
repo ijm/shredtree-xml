@@ -5,7 +5,9 @@
 // It follows the whole pipeline (View.placing), not just the edges drawn, so a step
 // keeps its column when what it was made from is missing.
 // A named node's tab sits on its top edge, outside its box, so its slot is that much
-// taller and its box that much lower.
+// taller and its box that much lower. A top-level node is never shorter than its
+// `floor`, so it can keep its height as its contents come and go; what its contents
+// don't fill is its `slack`.
 
 import ELK from "elkjs/lib/elk.bundled.js";
 import type { ElkExtendedEdge, ElkNode, ElkPort } from "elkjs/lib/elk-api.js";
@@ -15,15 +17,17 @@ import type { View } from "./model.ts";
 export const HEADER = 28;  // a box's header, which its children sit below: --header-height in styles.css
 export const TAB = 16;     // a name tab's height: --tab-height in styles.css
 const PAD = 8;
+/** The least a top-level node's height can be: a header and five lines of text. */
+export const FLOOR = HEADER + 5 * 16;
 
-export interface Box { x: number; y: number; width: number; height: number }
+export interface Box { x: number; y: number; width: number; height: number; slack?: number }
 
 const elk = new ELK();
 
-/** Each element's box, relative to its parent's, given the leaves' measured sizes and
- * which elements carry a name tab. */
+/** Each element's box, relative to its parent's, given the leaves' measured sizes,
+ * which elements carry a name tab, and the least height of each top-level node. */
 export async function layout(view: View, leaves: Map<string, { width: number; height: number }>,
-                             named: Set<string>): Promise<Map<string, Box>> {
+                             named: Set<string>, floor: (id: string) => number): Promise<Map<string, Box>> {
   const out = new Map<string, Box>();
   const top = new Map<string, string>();       // element -> its top-level block
   const offset = new Map<string, number>();    // element -> y within its top-level block
@@ -48,7 +52,12 @@ export async function layout(view: View, leaves: Map<string, { width: number; he
     return box.height + tab(id);
   };
   const blocks = view.order.filter((id) => view.items.get(id)!.parent === null);
-  for (const id of blocks) stack(id, 0, 0, id);
+  for (const id of blocks) {
+    stack(id, 0, 0, id);
+    const b = out.get(id)!;
+    const height = Math.max(b.height, floor(id));
+    out.set(id, { ...b, height, slack: height - b.height });  // empty space at the bottom
+  }
   for (const id of view.order) {
     const { parent } = view.items.get(id)!;
     offset.set(id, (parent === null ? 0 : offset.get(parent)!) + out.get(id)!.y);

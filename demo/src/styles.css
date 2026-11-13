@@ -274,6 +274,8 @@ select option, select optgroup { background: var(--bg); }
 }
 .st-node.is-derived { --accent: var(--green); }
 .st-node.leaf { --fill: var(--panel); width: var(--leaf-width); background: var(--fill); }
+/* a top-level leaf is held at a fixed height (see layout.ts): it fills it, text at the top */
+.react-flow__node-leaf > .st-node.leaf { height: 100%; }
 .st-node.box {
   width: 100%;
   height: 100%;
@@ -374,15 +376,28 @@ select option, select optgroup { background: var(--bg); }
    to be built if it's a computed step not in the store */
 .st-node.missing { --fill: transparent; }
 .st-node.missing > .head { color: var(--dim); }
-/* in the store, but not openable with these keys: dimmed and hatched, and labelled */
+/* hatching: where a node has nothing to show. All over a node these keys can't open,
+   which is also dimmed and labelled; and over the space at the bottom of a top-level
+   node its contents don't fill, as it never shrinks (see layout.ts) */
+.st-node {
+  --hatch: repeating-linear-gradient(135deg,
+    color-mix(in oklch, var(--line-colour) 30%, transparent) 0 1px, transparent 1px 7px);
+}
 .st-node.missing.invisible:not(.faded) { opacity: 0.6; }
 .st-node.missing.invisible::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: repeating-linear-gradient(135deg,
-    color-mix(in oklch, var(--line-colour) 30%, transparent) 0 1px, transparent 1px 7px);
+  background: var(--hatch);
+}
+.st-node > .slack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: var(--hatch);
 }
 .head .invisible { font-weight: 400; letter-spacing: 0.2em; color: var(--dim); }
 .head .acl { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); }
