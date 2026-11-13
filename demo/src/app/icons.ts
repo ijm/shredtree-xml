@@ -8,3 +8,5 @@ export const RELOAD = "\ueb37";
 export const INFO = "\uea74";
 export const CLOSE = "\uea76";
 export const HOME = "\ueb06";
+// from Material Design, in the same font (beyond U+FFFF, so in braces)
+export const HAND = "\u{f0a55}";

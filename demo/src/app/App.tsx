@@ -1,10 +1,12 @@
 import { ReactFlowProvider } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import type { Engine } from "../engine/engine.ts";
 import { SCENARIOS, engine as startEngine } from "./boot.ts";
 import { Graph, QUIET } from "./Graph.tsx";
-import type { Actions, Highlight } from "./Graph.tsx";
+import type { Actions, Highlight, Tip } from "./Graph.tsx";
+import { suggest } from "./guide.ts";
+import type { Did, Suggestion } from "./guide.ts";
 import { HOME, INFO, KEY, RELOAD } from "./icons.ts";
 import { Intro } from "./Intro.tsx";
 import { Session } from "./model.ts";
@@ -26,6 +28,14 @@ export function App() {
   const [intro, setIntro] = useState(true);
   const [entered, setEntered] = useState(false);
   const closeIntro = useCallback(() => { setIntro(false); setEntered(true); }, []);
+  // suggestions: each shown once per loading of the demo, its tip gone once it has flashed
+  const shown = useRef(new Set<Suggestion>());
+  const tips = useRef(0);
+  const [tip, setTip] = useState<Tip | null>(null);
+  const offer = (did?: Did) => {
+    const s = suggest(SCENARIOS[pick].name, did, shown.current);
+    setTip(s === undefined ? null : { at: s.at, control: s.control, text: s.text, serial: ++tips.current });
+  };
 
   useEffect(() => {
     startEngine().then(setEngine, (e: unknown) => setError(`engine failed to start: ${e}`));
@@ -38,6 +48,7 @@ export function App() {
       setSession(s);
       setKeys(s.acls);
       setError(null);
+      offer();
     } catch (e) {
       setError(String(e));
     }
@@ -56,6 +67,14 @@ export function App() {
     setPreview(null);
     setFocus(null);
     wrote();
+  };
+
+  /** `f` on the node `id`, then whatever that suggests next. */
+  const did = (what: Did["do"], id: string, f: () => void) => {
+    const at = session!.info(view!, id).label;  // asked first: `f` may take the node away
+    act(f);
+    if (at === undefined) setTip(null);
+    else offer({ do: what, at });
   };
 
   const highlight = useMemo((): Highlight => {
@@ -77,12 +96,14 @@ export function App() {
   }, [view, session, focus, preview, keyHover, keys]);
   const actions: Actions = {
     highlight,
+    tip,
+    tipDone: (serial) => setTip((t) => (t?.serial === serial ? null : t)),
     lockKey: session?.lockKey ?? "",
     hover: setFocus,
     preview: (id, returns = false) => setPreview(id === null ? null : { id, returns }),
-    shred: (id) => act(() => session!.shred(id, keys)),
-    setKeyed: (id, keyed) => act(() => session!.setKeyed(view!, id, keyed, keys)),
-    build: (name) => act(() => session!.build(name, keys)),
+    shred: (id) => did("shred", id, () => session!.shred(id, keys)),
+    setKeyed: (id, keyed) => did("lock", id, () => session!.setKeyed(view!, id, keyed, keys)),
+    build: (name) => { act(() => session!.build(name, keys)); offer({ do: "build", at: name }); },
   };
 
   const { scenario } = SCENARIOS[pick];
@@ -123,7 +144,7 @@ export function App() {
                 type="button" key={acl} className={present ? "key on" : "key off"} aria-pressed={present}
                 title={present ? `key ${acl} is in the keyring: click to remove it` : `key ${acl} is not in the keyring: click to add it`}
                 onMouseEnter={() => setKeyHover(acl)} onMouseLeave={() => setKeyHover(null)}
-                onClick={() => setKeys(present ? keys.filter((k) => k !== acl) : [...keys, acl].sort())}
+                onClick={() => { setKeys(present ? keys.filter((k) => k !== acl) : [...keys, acl].sort()); offer({ do: "key", at: acl }); }}
               ><span className="icon">{KEY}</span><span className="name">{acl}</span><span className="state">{present ? "present" : "absent"}</span></button>
             );
           })}

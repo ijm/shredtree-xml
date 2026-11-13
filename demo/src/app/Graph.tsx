@@ -8,7 +8,8 @@ import type { Edge, Node, NodeProps } from "@xyflow/react";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, Ref } from "react";
 
-import { KEY, LOCK, TOOLS, TRASH, UNLOCK } from "./icons.ts";
+import type { Control } from "./guide.ts";
+import { HAND, KEY, LOCK, TOOLS, TRASH, UNLOCK } from "./icons.ts";
 import { FLOOR, TAB, layout } from "./layout.ts";
 import type { Box } from "./layout.ts";
 import { ancestors } from "./model.ts";
@@ -32,8 +33,13 @@ export interface Highlight {
   doomed: Set<string>;
 }
 
+/** A suggestion to show: `serial` changes with each, so its flashes start afresh. */
+export interface Tip { at: string; control: Control; text: string; serial: number }
+
 export interface Actions {
   highlight: Highlight;
+  tip: Tip | null;
+  tipDone(serial: number): void;  // its time on show is over: it shouldn't come back
   lockKey: string;  // the key the lock button applies
   hover(id: string | null): void;
   preview(id: string | null, returns?: boolean): void;
@@ -59,7 +65,7 @@ function Head({ item, info }: Data) {
       <span className="what">
         {info.transform !== undefined && (
           // builds the step's node: only for a placeholder, once what it needs is there
-          <><button type="button" className={info.ready ? "nodrag transform on" : "nodrag transform"} disabled={!info.ready}
+          <><button type="button" className={info.ready ? "nodrag transform on" : "nodrag transform"} disabled={!info.ready} data-control="build"
                     title={item.missing === "unbuilt" ? `build with ${info.transform}` : `made by ${info.transform}`}
                     onClick={() => act.build(info.label!)}><span className="icon">{TOOLS}</span>{info.transform}</button>→</>
         )}
@@ -72,7 +78,7 @@ function Head({ item, info }: Data) {
       {!item.missing && <span className="controls">
         {leaf && (
           <button
-            type="button" className="nodrag icon" disabled={info.inherited}
+            type="button" className="nodrag icon" disabled={info.inherited} data-control="lock"
             title={info.inherited ? "keyed through an enclosing node"
               : info.acl !== undefined ? `${info.acl}'s key: remove it` : `no key: apply ${act.lockKey}'s key`}
             onMouseEnter={() => act.preview(item.id, true)} onMouseLeave={() => act.preview(null)}
@@ -80,7 +86,7 @@ function Head({ item, info }: Data) {
           >{keyed ? LOCK : UNLOCK}</button>
         )}
         <button
-          type="button" className="nodrag icon" title="shred"
+          type="button" className="nodrag icon" title="shred" data-control="shred"
           onMouseEnter={() => act.preview(item.id)} onMouseLeave={() => act.preview(null)}
           onClick={() => act.shred(item.id)}
         >{TRASH}</button>
@@ -136,9 +142,38 @@ function GraphNode({ data }: NodeProps<FlowNode>) {
       <Handle type="target" position={Position.Left} />
       <Tab {...data} />
       <Contents {...data} />
+      {act.tip && act.tip.at === data.info.label && <GuideTip key={act.tip.serial} {...act.tip} />}
       {/* an invisible node is hatched all over already */}
       {!!data.slack && data.item.missing !== "invisible" && <div className="slack" style={{ height: data.slack }} />}
       <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
+/** A suggestion: a tip above one of its node's controls, with a hand on the control, shown
+ * for three seconds once the node's own flash is over, brightening three times. */
+function GuideTip({ control, text, serial }: Tip) {
+  const act = useActions();
+  const ref = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState<{ x: number; y: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    const node = ref.current!.parentElement!;
+    const button = node.querySelector<HTMLElement>(`[data-control="${control}"]`);
+    if (button === null) return;
+    // its middle, in the node's own (unzoomed) pixels
+    let x = button.offsetWidth / 2, y = 0;
+    for (let el: HTMLElement | null = button; el !== null && el !== node; el = el.offsetParent as HTMLElement | null) {
+      x += el.offsetLeft;
+      y += el.offsetTop;
+    }
+    setAt({ x, y, h: button.offsetHeight });
+  }, [control]);
+  return (
+    // over when it has been on show, timed from when it's seen rather than when it was offered
+    <div ref={ref} className="guide" aria-hidden style={at ? { left: at.x, top: at.y } : { display: "none" }}
+         onAnimationEnd={(e) => { if (e.animationName === "guide-life") act.tipDone(serial); }}>
+      <span className="bubble">{text}</span>
+      <span className="hand" style={{ top: (at?.h ?? 0) / 2 }}>{HAND}</span>
     </div>
   );
 }
